@@ -463,6 +463,87 @@ Response (200):
 }
 ```
 
+#### POST /api/v1/auth/change-password
+```python
+Headers: Authorization: Bearer {access_token}
+
+Request:
+{
+  "current_password": "oldPassw0rd",
+  "new_password": "N3wSecur3Pass!"
+}
+
+Response (200):
+{
+  "message": "Password updated successfully"
+}
+
+Response (400):
+{
+  "error": "Current password is incorrect"
+}
+```
+
+### User Profile Endpoints
+
+#### GET /api/v1/users/me
+```python
+Headers: Authorization: Bearer {access_token}
+
+Response (200):
+{
+  "id": "64f5a1b2c3d4e5f6789012ab",
+  "email": "user@example.com",
+  "full_name": "John Doe",
+  "is_active": true,
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-16T14:25:00Z"
+}
+```
+
+#### PUT /api/v1/users/me
+```python
+Headers: Authorization: Bearer {access_token}
+
+Request:
+{
+  "full_name": "John Q. Doe"
+}
+
+Response (200):
+{
+  "message": "Profile updated successfully",
+  "user": {
+    "id": "64f5a1b2c3d4e5f6789012ab",
+    "email": "user@example.com",
+    "full_name": "John Q. Doe",
+    "is_active": true,
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-16T15:10:00Z"
+  }
+}
+```
+
+#### GET /api/v1/users/{user_id}
+```python
+Headers: Authorization: Bearer {access_token}
+
+Response (200):
+{
+  "id": "64f5a1b2c3d4e5f6789012ac",
+  "email": "other@example.com",
+  "full_name": "Other User",
+  "is_active": true,
+  "created_at": "2024-01-10T09:00:00Z",
+  "updated_at": "2024-01-12T11:00:00Z"
+}
+
+Response (404):
+{
+  "error": "User not found"
+}
+```
+
 ### Project Management Endpoints
 
 #### GET /api/v1/projects

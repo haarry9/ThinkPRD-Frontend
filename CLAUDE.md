@@ -14,11 +14,14 @@ This is an AI PRD Generator application that transforms one-liner product ideas 
 - `npm run dev` - Start development server (runs on port 8080)
 - `npm run build` - Production build
 - `npm run build:dev` - Development build
-- `npm run lint` - Run ESLint
+- `npm run lint` - Run ESLint (includes TypeScript and React hooks linting)
 - `npm run preview` - Preview production build
 
 ### Installation
 - `npm install` - Install dependencies (uses package-lock.json)
+
+### Testing
+- No test framework is currently configured in this project
 
 ## Technology Stack
 
@@ -86,11 +89,11 @@ src/
 
 ## Configuration Files
 
-- **vite.config.ts**: Dev server on port 8080, path aliases (`@/` → `src/`)
-- **tsconfig.json**: Relaxed TypeScript settings (noImplicitAny: false, etc.)
-- **eslint.config.js**: React + TypeScript linting with some rules disabled
-- **tailwind.config.ts**: Extended with custom colors, fonts, animations
-- **components.json**: shadcn/ui configuration
+- **vite.config.ts**: Dev server on port 8080, path aliases (`@/` → `src/`), SWC React plugin, lovable-tagger in development mode
+- **tsconfig.json**: Relaxed TypeScript settings (noImplicitAny: false, strictNullChecks: false, etc.) for rapid prototyping
+- **eslint.config.js**: React + TypeScript linting with unused vars disabled, React hooks rules enabled
+- **tailwind.config.ts**: Extended with custom colors, fonts (Inter/JetBrains Mono), animations, sidebar tokens
+- **components.json**: shadcn/ui configuration with TypeScript and CSS variables enabled
 
 ## Future Backend Integration
 
@@ -110,11 +113,12 @@ The app is designed for future API integration:
 
 ## Important Patterns
 
-1. **Color Usage**: Always use CSS variable-based colors (`bg-background` not `bg-gray-900`)
-2. **Component Structure**: Follow shadcn/ui patterns for new components
-3. **State Management**: Use local React state; TanStack Query ready for API calls
-4. **File Organization**: Keep components focused and co-locate related files
-5. **Styling**: Prefer Tailwind utility classes over custom CSS
+1. **Color Usage**: Always use CSS variable-based colors (`bg-background` not `bg-gray-900`). All colors are defined in HSL format in `src/index.css`
+2. **Component Structure**: Follow shadcn/ui patterns for new components. Use `@/` path aliases for imports
+3. **State Management**: Use local React state; TanStack Query configured but not actively used
+4. **File Organization**: Keep components focused and co-locate related files. UI components in `src/components/ui/`
+5. **Styling**: Prefer Tailwind utility classes over custom CSS. Use `.ambient-spotlight`, `.pressable`, `.hover-scale` utility classes for interactions
+6. **Mock Data**: All functionality uses static mock data with realistic structure for future API integration
 
 ## Thinking Lens Framework
 
@@ -126,3 +130,19 @@ The application is built around a 5-criteria framework for PRD completeness:
 5. **Risks** - Identifying and mitigating potential issues
 
 This framework drives the clarification questions and PRD structure validation throughout the application.
+
+## Key Architecture Decisions
+
+1. **Forced Dark Theme**: App forces dark theme in `App.tsx` like Cursor IDE (`document.documentElement.classList.add('dark')`)
+2. **Tri-pane Layout**: Main workspace uses Cursor-inspired layout with collapsible left sidebar, main content area, and fixed right sidebar
+3. **Mock-First Development**: All components built with realistic mock data structures to enable easy API integration later
+4. **CSS Variable System**: Complete design system using HSL CSS variables for consistent theming
+5. **Component Co-location**: Related components grouped together (e.g., `chat/`, `sidebar/`, `layout/` directories)
+
+## Development Notes for Contributors
+
+- **TypeScript**: Strict mode is disabled for rapid prototyping - this is intentional
+- **ESLint**: `@typescript-eslint/no-unused-vars` is disabled to avoid noise during development
+- **Fonts**: Inter and JetBrains Mono are loaded from Google Fonts via `index.html`
+- **Keyboard Shortcuts**: ClarificationModal supports Cmd/Ctrl+Enter to submit
+- **Animations**: Custom animations defined in Tailwind config (fade-in, scale-in, etc.)

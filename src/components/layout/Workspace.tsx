@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, FileText, GitBranch, Link2, Save, History, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import PRDEditor from "@/components/PRDEditor";
 import FlowchartView from "@/components/FlowchartView";
+import ModeSegmented from "@/components/sidebar/ModeSegmented";
+import ThinkingLensChips, { LensKey } from "@/components/sidebar/ThinkingLensChips";
+import ChatPanel from "@/components/chat/ChatPanel";
 
 export interface VersionInfo {
   version: string;
@@ -39,6 +42,8 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
     { id: "1", role: "assistant", content: "Welcome! Ask me to refine any PRD section.", timestamp: new Date().toISOString() }
   ]);
   const [chatInput, setChatInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const sendMessage = () => {
     if (!chatInput.trim()) return;
@@ -49,8 +54,14 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
       content: mode === "agent" ? "Applied your request to the PRD (mock)." : "Brainstorming thoughts without changing the PRD (mock).",
       timestamp: new Date().toISOString(),
     };
-    setMessages((m) => [...m, userMsg, botMsg]);
+    setMessages((m) => [...m, userMsg]);
     setChatInput("");
+    setIsTyping(true);
+    setTimeout(() => {
+      setMessages((m) => [...m, botMsg]);
+      setIsTyping(false);
+      setLastUpdated(new Date().toLocaleTimeString());
+    }, 700);
   };
 
   return (
@@ -140,43 +151,28 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
         <div className="h-12 border-b px-3 flex items-center gap-2">
           <MessageSquare className="h-4 w-4" /> <span>PRD Agent</span>
         </div>
-        <div className="p-3 space-y-4">
-          <div>
-            <div className="text-sm text-muted-foreground mb-1">Mode</div>
-            <div className="flex gap-2">
-              <Button variant={mode==='think' ? 'default' : 'secondary'} size="sm" onClick={() => setMode('think')}>Think</Button>
-              <Button variant={mode==='agent' ? 'default' : 'secondary'} size="sm" onClick={() => setMode('agent')}>Agent</Button>
-            </div>
+        <div className="p-3 space-y-5">
+          <div className="space-y-2">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mode</div>
+            <ModeSegmented value={mode} onChange={setMode} />
           </div>
 
-          <div>
-            <div className="text-sm text-muted-foreground mb-2">Thinking Lens</div>
-            <div className="space-y-2">
-              {Object.entries(lens).map(([k, v]) => (
-                <label key={k} className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={v} onCheckedChange={(c) => setLens((prev) => ({...prev, [k]: !!c}))} />
-                  <span className={v ? 'text-foreground' : 'text-muted-foreground'}>{k.replace('_',' ')}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <ThinkingLensChips
+            value={lens as Record<LensKey, boolean>}
+            onToggle={(key, next) => setLens((prev) => ({ ...prev, [key]: next }))}
+          />
 
           <Separator />
 
-          <div className="space-y-3">
-            <div className="text-sm text-muted-foreground">Chat</div>
-            <div className="h-64 overflow-auto space-y-3 border rounded p-2 bg-card">
-              {messages.map((m) => (
-                <div key={m.id} className={`text-sm ${m.role==='assistant' ? 'text-foreground' : 'text-primary'}`}>
-                  <span className="font-medium">{m.role === 'assistant' ? 'AI' : 'You'}:</span> {m.content}
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Input placeholder={mode==='agent' ? 'Ask to update PRD...' : 'Brainstorm...'} value={chatInput} onChange={(e) => setChatInput(e.target.value)} />
-              <Button onClick={sendMessage}><Send className="h-4 w-4"/></Button>
-            </div>
-          </div>
+          <ChatPanel
+            mode={mode}
+            messages={messages}
+            input={chatInput}
+            setInput={setChatInput}
+            onSend={sendMessage}
+            isTyping={isTyping}
+            lastUpdated={lastUpdated}
+          />
         </div>
       </aside>
     </div>

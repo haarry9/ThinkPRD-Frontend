@@ -172,7 +172,7 @@ src/
 
 ## APIs (Planned) & Integration Strategy
 - The app currently uses mock data.
-- The backend PRD specifies REST endpoints under /api/v1 for auth, projects, clarifications, iterations, files, chats, versions, and websockets for real-time updates.
+- The backend PRD specifies REST endpoints under /api/v1 for auth, users, projects, clarifications, iterations, files, chats, versions, and websockets for real-time updates.
 - Integration approach:
   1. Create typed client modules per resource (e.g., api/projects.ts) with fetch wrappers.
   2. Add TanStack Query hooks (useProjects, useProject, useGenerate, etc.).
@@ -202,6 +202,22 @@ export async function listProjects() { /* fetch('/api/v1/projects') */ }
 
 // hooks/use-projects.ts
 export function useProjects() { /* return useQuery({ queryKey: ['projects'], queryFn: listProjects }) */ }
+```
+
+Planned auth/user routes to wire up in clients/hooks:
+
+```ts
+// Auth
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh
+POST /api/v1/auth/logout
+POST /api/v1/auth/change-password
+
+// Users
+GET  /api/v1/users/me
+PUT  /api/v1/users/me
+GET  /api/v1/users/{user_id}
 ```
 
 ## Accessibility & SEO

@@ -1,0 +1,118 @@
+import React, { useEffect, useRef } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import TypingDots from "./TypingDots";
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+interface ChatPanelProps {
+  mode: "think" | "agent";
+  messages: ChatMessage[];
+  input: string;
+  setInput: (v: string) => void;
+  onSend: () => void;
+  isTyping?: boolean;
+  lastUpdated?: string | null;
+}
+
+export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated }: ChatPanelProps) {
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, isTyping]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">PRD Agent</div>
+        <Badge variant="secondary" className="text-xs capitalize">{mode}</Badge>
+      </div>
+      <Separator />
+
+      <div className="h-64 rounded-md border bg-card">
+        <ScrollArea className="h-full p-3">
+          <div className="space-y-3">
+            {messages.map((m) => (
+              <MessageBubble key={m.id} message={m} />
+            ))}
+            {isTyping && (
+              <div className="flex items-start gap-2">
+                <Avatar className="h-6 w-6 ring-2 ring-primary/40">
+                  <AvatarFallback className="text-[10px]">AI</AvatarFallback>
+                </Avatar>
+                <TypingDots />
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+        </ScrollArea>
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!input.trim()) return;
+          onSend();
+        }}
+        className="flex items-end gap-2"
+      >
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={mode === "agent" ? "Ask to update PRD..." : "Brainstorm..."}
+          className="min-h-[44px] max-h-40 resize-y"
+          rows={2}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (input.trim()) onSend();
+            }
+          }}
+        />
+        <Button type="submit" disabled={!input.trim()}>
+          <Send className="h-4 w-4" />
+        </Button>
+      </form>
+
+      <div className="text-[10px] text-muted-foreground text-right">Powered by ThinkPRD Agent{lastUpdated ? ` • Last updated ${lastUpdated}` : ""}</div>
+    </div>
+  );
+}
+
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isAssistant = message.role === "assistant";
+  return (
+    <div className={`flex items-start gap-2 ${isAssistant ? "" : "flex-row-reverse"}`}>
+      <Avatar className="h-7 w-7">
+        <AvatarFallback className="text-[10px]">{isAssistant ? "AI" : "U"}</AvatarFallback>
+      </Avatar>
+      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+        isAssistant ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
+      }`}
+      >
+        {isAssistant ? (
+          <div className="prose prose-invert prose-p:my-2 prose-ul:my-2 prose-pre:my-2 max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          </div>
+        ) : (
+          <div>{message.content}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+

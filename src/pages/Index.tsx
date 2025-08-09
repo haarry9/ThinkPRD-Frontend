@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from '@/hooks/useAuth'
+import { useMemo } from 'react'
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Plus, Mic, AudioLines } from "lucide-react";
 import ClarificationModal, { ClarificationAnswers } from "@/components/ClarificationModal";
@@ -14,7 +17,42 @@ const MOCK_VERSIONS = [
   { version: "v0.9", timestamp: new Date(Date.now()-86400000).toISOString(), changes: "Added GTM section" },
 ];
 
+function UserMenu() {
+  const { user, signout } = useAuth()
+  const navigate = useNavigate()
+  const initials = useMemo(() => {
+    const name = user?.full_name || `${user?.first_name ?? ''} ${user?.last_name ?? ''}`
+    return name.trim().split(' ').filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('') || 'U'
+  }, [user])
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium">
+        {initials}
+      </div>
+      <Button size="sm" variant="ghost" onClick={() => navigate('/profile')}>Profile</Button>
+      <Button size="sm" variant="secondary" onClick={() => signout()}>Logout</Button>
+    </div>
+  )
+}
+
+function TopRightNav() {
+  const { status } = useAuth()
+  const navigate = useNavigate()
+  if (status === 'authenticated') return <UserMenu />
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      className="pressable"
+      onClick={() => navigate('/login')}
+    >
+      Sign In
+    </Button>
+  )
+}
+
 const Index = () => {
+  const navigate = useNavigate();
   const [idea, setIdea] = useState("");
   const [showClarify, setShowClarify] = useState(false);
   const [workspace, setWorkspace] = useState(false);
@@ -56,7 +94,7 @@ const Index = () => {
       <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto max-w-6xl h-14 px-4 flex items-center justify-between">
           <div className="text-lg font-semibold tracking-tight">ThinkPRD</div>
-          <Button variant="secondary" size="sm" className="pressable">Sign In</Button>
+          <TopRightNav />
         </div>
       </nav>
 
