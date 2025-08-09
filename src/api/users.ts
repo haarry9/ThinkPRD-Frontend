@@ -14,14 +14,15 @@ export type UserProfile = {
 export type UpdateMePayload = Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'bio' | 'phone_number'>>
 
 import { request } from '@/api/http'
+import { apiUrl } from '@/api/config'
 
 export async function getMe(_accessToken: string): Promise<UserProfile> {
   // Token is read from storage and injected by http wrapper
-  return request<UserProfile>('/api/v1/users/me', { method: 'GET' })
+  return request<UserProfile>(apiUrl('users/me'), { method: 'GET' })
 }
 
 export async function updateMe(_accessToken: string, payload: UpdateMePayload): Promise<UserProfile> {
-  const data = await request<any>('/api/v1/users/me', {
+  const data = await request<any>(apiUrl('users/me'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

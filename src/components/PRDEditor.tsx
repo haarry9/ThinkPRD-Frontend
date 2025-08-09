@@ -7,15 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 interface Props {
   value: string;
   onChange: (v: string) => void;
+  disabled?: boolean;
 }
 
-export default function PRDEditor({ value, onChange }: Props) {
+export default function PRDEditor({ value, onChange, disabled }: Props) {
   return (
     <div className="w-full">
-      <Tabs defaultValue="edit">
+      <Tabs defaultValue="preview">
         <TabsList>
-          <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="edit">Edit</TabsTrigger>
         </TabsList>
         <TabsContent value="edit" className="mt-2">
           <Textarea
@@ -23,6 +24,7 @@ export default function PRDEditor({ value, onChange }: Props) {
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="# Product Requirements Document\n..."
+            disabled={disabled}
           />
         </TabsContent>
         <TabsContent value="preview" className="mt-2">

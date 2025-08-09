@@ -5,17 +5,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useMemo } from 'react'
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Plus, Mic, AudioLines } from "lucide-react";
-import ClarificationModal, { ClarificationAnswers } from "@/components/ClarificationModal";
-import Workspace from "@/components/layout/Workspace";
+// ClarificationModal flow disabled for HITL incremental questioning
+import { useAgentSessionContext } from '@/context/AgentSessionContext'
+// Workspace is now a separate route; home page only boots and navigates
 
-const MOCK_PRD = `# Product Requirements Document\n\n## Overview\nDescribe your product vision, goals, and context.\n\n## Functional Requirements\n- FR-1: Accept one-liner ideas via chat.\n- FR-2: Generate clarification questions.\n\n## Metrics\n- Activation rate, Time to first PRD.\n\n## GTM\n- Initial reach via PLG and community.\n\n## Risks\n- Scope creep; unclear metrics.\n`;
-
-const MOCK_FLOW = `graph TD\n  A[User] --> B[Frontend UI]\n  B --> C[Clarification Agent]\n  C --> D[PRD Generation]\n  D --> E[Flowchart Agent]\n  B --> F[Chat Manager]\n`;
-
-const MOCK_VERSIONS = [
-  { version: "v1.0", timestamp: new Date().toISOString(), changes: "Initial PRD and flowchart generated" },
-  { version: "v0.9", timestamp: new Date(Date.now()-86400000).toISOString(), changes: "Added GTM section" },
-];
+// Removed legacy mock workspace constants
 
 function UserMenu() {
   const { user, signout } = useAuth()
@@ -53,40 +47,25 @@ function TopRightNav() {
 
 const Index = () => {
   const navigate = useNavigate();
+  const session = useAgentSessionContext()
   const [idea, setIdea] = useState("");
-  const [showClarify, setShowClarify] = useState(false);
-  const [workspace, setWorkspace] = useState(false);
-  const [lens, setLens] = useState({
-    discovery: true,
-    user_journey: true,
-    metrics: false,
-    gtm: true,
-    risks: false,
-  });
+  // HITL: skip pre-chat clarifications; questions will be asked incrementally via WS interrupts
+  // Lens state is handled within the workspace via streaming; no local state needed here
 
-  const start = () => {
+  const start = async () => {
     if (!idea.trim()) return;
-    setShowClarify(true);
+    // Bootstrap: ingest idea
+    const ingestRes = await session.bootstrapFromIngest(idea)
+    // Navigate directly to workspace; incremental HITL questions will be handled there
+    const { project_id, chat_id } = ingestRes
+    if (project_id && chat_id) {
+      navigate(`/workspace/${encodeURIComponent(project_id)}/${encodeURIComponent(chat_id)}`)
+    }
   };
 
-  const handleClarifySubmit = (answers: ClarificationAnswers) => {
-    // Mock: mark metrics/risks complete if user wrote anything
-    const hasMetrics = (answers.metrics || []).some((a) => a.trim().length > 0);
-    const hasRisks = (answers.risks || []).some((a) => a.trim().length > 0);
-    setLens((l) => ({ ...l, metrics: hasMetrics || l.metrics, risks: hasRisks || l.risks }));
-    setShowClarify(false);
-    setWorkspace(true);
-  };
+  // Clarification submit flow removed (HITL incremental questioning replaces it)
 
-  if (workspace) {
-    return (
-      <>
-        <main className="min-h-screen bg-background">
-          <Workspace initialPRD={MOCK_PRD} initialFlow={MOCK_FLOW} initialLens={lens} versions={MOCK_VERSIONS} />
-        </main>
-      </>
-    );
-  }
+  // Previously rendered local Workspace here; now we always stay on Home and navigate to /workspace on submit
 
   return (
     <div className="min-h-screen bg-background px-4 pt-14">
@@ -133,12 +112,7 @@ const Index = () => {
         {/* Recent section removed per design update */}
       </section>
 
-      <ClarificationModal
-        open={showClarify}
-        idea={idea}
-        onClose={() => setShowClarify(false)}
-        onSubmit={handleClarifySubmit}
-      />
+      {/* Clarification modal is intentionally disabled; HITL handles incremental Q/A in workspace */}
     </div>
   );
 };

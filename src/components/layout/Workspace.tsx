@@ -9,7 +9,6 @@ import { MessageSquare, FileText, GitBranch, Link2, Save, History, Send, Chevron
 import PRDEditor from "@/components/PRDEditor";
 import FlowchartView from "@/components/FlowchartView";
 import ModeSegmented from "@/components/sidebar/ModeSegmented";
-import ThinkingLensChips, { LensKey } from "@/components/sidebar/ThinkingLensChips";
 import ChatPanel from "@/components/chat/ChatPanel";
 
 export interface VersionInfo {
@@ -32,12 +31,11 @@ interface Props {
   versions: VersionInfo[];
 }
 
-export default function Workspace({ initialPRD, initialFlow, initialLens, versions }: Props) {
+export default function Workspace({ initialPRD, initialFlow, initialLens: _initialLens, versions }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [prd, setPrd] = useState(initialPRD);
   const [flow, setFlow] = useState(initialFlow);
   const [mode, setMode] = useState<"think" | "agent">("agent");
-  const [lens, setLens] = useState(initialLens);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "1", role: "assistant", content: "Welcome! Ask me to refine any PRD section.", timestamp: new Date().toISOString() }
   ]);
@@ -65,7 +63,7 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
   };
 
   return (
-    <div className="min-h-screen flex w-full ambient-spotlight" onMouseMove={(e) => {
+    <div className="h-screen overflow-hidden flex w-full ambient-spotlight" onMouseMove={(e) => {
       const r = e.currentTarget.getBoundingClientRect();
       const x = ((e.clientX - r.left) / r.width) * 100;
       const y = ((e.clientY - r.top) / r.height) * 100;
@@ -73,7 +71,7 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
       e.currentTarget.style.setProperty('--y', y + '%');
     }}>
       {/* Left panel */}
-      <aside className={`border-r bg-sidebar ${collapsed ? 'w-16' : 'w-64'} transition-all`}>
+      <aside className={`border-r bg-sidebar ${collapsed ? 'w-16' : 'w-64'} transition-all h-full shrink-0 overflow-hidden`}>
         <div className="h-12 flex items-center justify-between px-3 border-b">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -118,10 +116,10 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
       </aside>
 
       {/* Main content */}
-      <main className="flex-1">
+      <main className="flex-1 min-h-0 flex flex-col">
         {/* Wrap header + content in the same Tabs so the list can live in the header */}
-        <Tabs defaultValue="prd">
-          <div className="h-12 border-b flex items-center justify-between px-4">
+        <Tabs defaultValue="prd" className="flex-1 min-h-0 flex flex-col">
+          <div className="h-12 border-b flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
               <TabsList className="h-8">
                 <TabsTrigger value="prd">PRD</TabsTrigger>
@@ -134,7 +132,7 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-4 flex-1 min-h-0 overflow-auto">
             <TabsContent value="prd" className="mt-0">
               <PRDEditor value={prd} onChange={setPrd} />
             </TabsContent>
@@ -147,32 +145,25 @@ export default function Workspace({ initialPRD, initialFlow, initialLens, versio
 
       {/* Right sidebar */
       }
-      <aside className="w-80 border-l bg-sidebar">
-        <div className="h-12 border-b px-3 flex items-center gap-2">
+      <aside className="w-96 border-l bg-sidebar flex flex-col h-full shrink-0 overflow-hidden">
+        <div className="h-12 border-b px-3 flex items-center gap-2 shrink-0">
           <MessageSquare className="h-4 w-4" /> <span>PRD Agent</span>
         </div>
-        <div className="p-3 space-y-5">
-          <div className="space-y-2">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Mode</div>
-            <ModeSegmented value={mode} onChange={setMode} />
+        <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-auto">
+          <div className="flex-1 min-h-0">
+            <ChatPanel
+              mode={mode}
+              messages={messages}
+              input={chatInput}
+              setInput={setChatInput}
+              onSend={sendMessage}
+              isTyping={isTyping}
+              lastUpdated={lastUpdated}
+            />
           </div>
-
-          <ThinkingLensChips
-            value={lens as Record<LensKey, boolean>}
-            onToggle={(key, next) => setLens((prev) => ({ ...prev, [key]: next }))}
-          />
-
-          <Separator />
-
-          <ChatPanel
-            mode={mode}
-            messages={messages}
-            input={chatInput}
-            setInput={setChatInput}
-            onSend={sendMessage}
-            isTyping={isTyping}
-            lastUpdated={lastUpdated}
-          />
+          <div className="shrink-0">
+            <ModeSegmented compact value={mode} onChange={setMode} />
+          </div>
         </div>
       </aside>
     </div>

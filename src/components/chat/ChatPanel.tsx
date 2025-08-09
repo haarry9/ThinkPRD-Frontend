@@ -25,9 +25,11 @@ interface ChatPanelProps {
   onSend: () => void;
   isTyping?: boolean;
   lastUpdated?: string | null;
+  disabled?: boolean;
+  streamingAssistantContent?: string;
 }
 
-export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated }: ChatPanelProps) {
+export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated, disabled, streamingAssistantContent }: ChatPanelProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -35,19 +37,29 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
   }, [messages.length, isTyping]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 h-full flex-col space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium">PRD Agent</div>
         <Badge variant="secondary" className="text-xs capitalize">{mode}</Badge>
       </div>
       <Separator />
 
-      <div className="h-64 rounded-md border bg-card">
+      <div className="flex-1 min-h-[240px] rounded-md border bg-card">
         <ScrollArea className="h-full p-3">
           <div className="space-y-3">
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
+            {!!streamingAssistantContent && (
+              <MessageBubble
+                message={{
+                  id: 'streaming',
+                  role: 'assistant',
+                  content: streamingAssistantContent,
+                  timestamp: new Date().toISOString(),
+                }}
+              />
+            )}
             {isTyping && (
               <div className="flex items-start gap-2">
                 <Avatar className="h-6 w-6 ring-2 ring-primary/40">
@@ -64,7 +76,7 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!input.trim()) return;
+          if (!input.trim() || disabled) return;
           onSend();
         }}
         className="flex items-end gap-2"
@@ -78,11 +90,12 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (input.trim()) onSend();
+              if (input.trim() && !disabled) onSend();
             }
           }}
+          disabled={disabled}
         />
-        <Button type="submit" disabled={!input.trim()}>
+        <Button type="submit" disabled={!input.trim() || !!disabled} title={disabled ? 'Disabled while streaming' : undefined}>
           <Send className="h-4 w-4" />
         </Button>
       </form>

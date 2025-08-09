@@ -3,9 +3,10 @@ import mermaid from "mermaid";
 
 interface Props {
   code: string;
+  onRenderResult?: (ok: boolean) => void;
 }
 
-export default function FlowchartView({ code }: Props) {
+export default function FlowchartView({ code, onRenderResult }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,11 +21,13 @@ export default function FlowchartView({ code }: Props) {
         const { svg } = await mermaid.render(id, code);
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg;
+          onRenderResult?.(true)
         }
       } catch (e) {
         if (containerRef.current) {
           containerRef.current.innerHTML = `<pre class="text-destructive">Mermaid render error. Check syntax.</pre>`;
         }
+        onRenderResult?.(false)
       }
     })();
     return () => { cancelled = true; };

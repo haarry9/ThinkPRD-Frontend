@@ -40,8 +40,10 @@ function normalizeUser(raw: any): LoginResponse['user'] | undefined {
   return { id, email, full_name, first_name, last_name, phone_number, bio }
 }
 
+import { apiUrl } from '@/api/config'
+
 export async function login(payload: LoginRequest): Promise<LoginResponse> {
-  const res = await fetch('/api/v1/auth/login', {
+  const res = await fetch(apiUrl('auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -75,7 +77,7 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function register(payload: RegisterRequest): Promise<{ message: string; user_id: string }> {
-  const res = await fetch('/api/v1/auth/register', {
+  const res = await fetch(apiUrl('auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -161,7 +163,7 @@ export function setTokens(params: { access: string; refresh?: string; expires_in
 }
 
 export async function refresh(refreshToken: string): Promise<{ access_token: string; expires_in: number; refresh_token?: string }> {
-  const res = await fetch('/api/v1/auth/refresh', {
+  const res = await fetch(apiUrl('auth/refresh'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: sanitizeToken(refreshToken) }),
@@ -185,7 +187,7 @@ export async function logout(accessToken: string, refreshToken?: string): Promis
   const body = AUTH_LOGOUT_SEND_REFRESH_BODY && refreshToken ? JSON.stringify({ refresh_token: sanitizeToken(refreshToken) }) : undefined
   const headers: Record<string, string> = { Authorization: `Bearer ${sanitizeToken(accessToken)}` }
   if (body) headers['Content-Type'] = 'application/json'
-  const res = await fetch('/api/v1/auth/logout', {
+  const res = await fetch(apiUrl('auth/logout'), {
     method: 'POST',
     headers,
     body,

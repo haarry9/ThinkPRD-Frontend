@@ -28,11 +28,13 @@ interface ThinkingLensChipsProps {
 export default function ThinkingLensChips({ value, onToggle }: ThinkingLensChipsProps) {
   const entries = Object.entries(value) as [LensKey, boolean][];
   const complete = entries.filter(([, v]) => v).length;
+  const pct = entries.length ? Math.round((complete / entries.length) * 100) : 0;
 
   return (
     <div className="space-y-2">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Thinking Lens · {complete}/{entries.length} complete
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+        <span>Thinking Lens · {complete}/{entries.length} complete</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{pct}%</span>
       </div>
       <ToggleGroup type="multiple" className="flex flex-wrap gap-2">
         <TooltipProvider>

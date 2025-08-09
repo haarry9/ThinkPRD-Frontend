@@ -8,12 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
-    },
+    // No proxy — all API/WS calls use absolute URLs via API_BASE/WS_BASE
   },
   plugins: [
     react(),

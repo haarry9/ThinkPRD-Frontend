@@ -1,0 +1,257 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { FileText, GitBranch, Link2, History, Save, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
+import PRDEditor from '@/components/PRDEditor'
+import FlowchartView from '@/components/FlowchartView'
+import ModeSegmented from '@/components/sidebar/ModeSegmented'
+import ChatPanel from '@/components/chat/ChatPanel'
+import { useAgentSessionContext } from '@/context/AgentSessionContext'
+/* no longer using inline HITL input banner */
+
+export default function WorkspacePage() {
+  const { projectId, chatId } = useParams()
+  const session = useAgentSessionContext()
+  const [collapsed, setCollapsed] = useState(false)
+  const [mode, setMode] = useState<'think' | 'agent'>('agent')
+  const [chatInput, setChatInput] = useState('')
+  const initialRunSentRef = useRef(false)
+  const wsReadyRef = useRef(false)
+
+  // Connect/disconnect lifecycle
+  useEffect(() => {
+    if (projectId && chatId) {
+      // Ensure provider state has IDs for deep links or refresh
+      if (session.state.projectId !== projectId || session.state.chatId !== chatId) {
+        session.setIds(projectId, chatId)
+      }
+      session.connect().then(() => {
+        wsReadyRef.current = true
+      }).catch(() => {})
+      return () => {
+        session.disconnect().catch(() => {})
+        wsReadyRef.current = false
+      }
+    }
+  }, [projectId, chatId])
+
+  // Auto-send initial agent run once
+  useEffect(() => {
+    if (initialRunSentRef.current) return
+    if (!session.state.projectId || !session.state.chatId) return
+    if (!session.state.wsConnected && !wsReadyRef.current) return
+    initialRunSentRef.current = true
+    const content = session.state.initialIdea
+      ? `Generate a PRD outline only using the shared template. No commentary.`
+      : `Generate a PRD outline only using the shared template. No commentary.`
+    session.sendAgentMessage(content, { silent: true }).catch(() => {
+      initialRunSentRef.current = false
+    })
+  }, [session.state.projectId, session.state.chatId, session.state.wsConnected])
+
+  const versions = useMemo(() => session.state.versions.map(v => ({
+    version: v.version,
+    timestamp: v.timestamp,
+    changes: v.changes || ''
+  })), [session.state.versions])
+
+  const messages = session.state.messages
+  const isStreaming = session.state.isStreaming
+  const wsConnected = session.state.wsConnected
+  const lastUpdated = session.state.lastUpdated
+  // Thinking lens UI removed from sidebar; we still keep state internally in session
+
+  const onSend = () => {
+    if (!chatInput.trim()) return
+    // If a question is pending, treat this as the answer to resume the agent
+    if (session.state.pendingQuestion) {
+      session.answerPendingQuestion(chatInput.trim())
+        .then(() => setChatInput(''))
+        .catch((e: any) => toast({ title: 'Failed to send answer', description: e?.message || 'Unknown error' }))
+      return
+    }
+    if (isStreaming || session.isBusy()) {
+      const msg = 'Generation in progress. Please wait for the current run to finish.'
+      toast({ title: 'Agent busy', description: msg })
+      return
+    }
+    session.sendAgentMessage(chatInput.trim()).catch((e: any) => {
+      const msg = e?.message || 'Failed to send message'
+      toast({ title: 'Send failed', description: msg })
+    })
+    setChatInput('')
+  }
+
+  const prdValue = session.state.prdMarkdown
+  const onPrdChange = (v: string) => {
+    if (isStreaming) return
+    session.setPrdMarkdown(v)
+  }
+
+  const [mermaidOk, setMermaidOk] = useState(true)
+  const flowCode = session.state.mermaid || session.state.lastGoodMermaid
+  // HITL banner removed; Q/A happens in chat
+
+  return (
+    <div className="h-screen overflow-hidden flex w-full ambient-spotlight" onMouseMove={(e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * 100;
+      const y = ((e.clientY - r.top) / r.height) * 100;
+      e.currentTarget.style.setProperty('--x', x + '%');
+      e.currentTarget.style.setProperty('--y', y + '%');
+    }}>
+      {/* Left panel */}
+      <aside className={`border-r bg-sidebar ${collapsed ? 'w-16' : 'w-64'} transition-all h-full shrink-0 overflow-hidden`}> 
+        <div className="h-12 flex items-center justify-between px-3 border-b">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            {!collapsed && <span className="font-medium">Project</span>}
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)}>
+            {collapsed ? <ChevronRight className="h-4 w-4"/> : <ChevronLeft className="h-4 w-4"/>}
+          </Button>
+        </div>
+        <div className="p-3 space-y-2 text-sm">
+          <div className="text-muted-foreground">Files</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
+              <FileText className="h-4 w-4" /> {!collapsed && <span>PRD.md</span>}
+            </div>
+            <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
+              <GitBranch className="h-4 w-4" /> {!collapsed && <span>Flowchart.mmd</span>}
+            </div>
+            <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
+              <Link2 className="h-4 w-4" /> {!collapsed && <span>Assets</span>}
+            </div>
+          </div>
+          <Separator className="my-2" />
+          {!collapsed && (
+            <div>
+              <div className="text-muted-foreground mb-2">Versions</div>
+              <div className="space-y-2">
+                {versions.map((v) => (
+                  <Card key={v.version} className="bg-card/60">
+                    <CardHeader className="py-2">
+                      <CardTitle className="text-sm">{v.version} <span className="text-xs text-muted-foreground">• {new Date(v.timestamp).toLocaleString()}</span></CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-xs text-muted-foreground">
+                      {v.changes}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 min-h-0 flex flex-col">
+        <Tabs defaultValue="prd" className="flex-1 min-h-0 flex flex-col">
+          <div className="h-12 border-b flex items-center justify-between px-4 shrink-0">
+            <div className="flex items-center gap-3">
+              <TabsList className="h-8">
+                <TabsTrigger value="prd">PRD</TabsTrigger>
+                <TabsTrigger value="flow">Flowchart</TabsTrigger>
+              </TabsList>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => session.fetchVersions().catch(() => {})}
+              >
+                <History className="h-4 w-4 mr-1"/>History
+              </Button>
+              <Button
+                size="sm"
+                disabled={session.state.isStreaming || !session.state.unsavedChanges}
+                onClick={async () => {
+                  try {
+                    const res = await session.save()
+                    toast({ title: 'Saved', description: `Version ${res.version}` })
+                  } catch (e: any) {
+                    if (e?.status === 409) {
+                      // ETag conflict — simple resolution: force save (optimistic choice)
+                      toast({ title: 'Conflict detected', description: 'Retrying with latest version...' })
+                      try {
+                        const res2 = await session.saveForce()
+                        toast({ title: 'Saved after refresh', description: `Version ${res2.version}` })
+                      } catch (ee: any) {
+                        toast({ title: 'Save failed', description: ee?.message || 'Unknown error' })
+                      }
+                    } else {
+                      toast({ title: 'Save failed', description: e?.message || 'Unknown error' })
+                    }
+                  }
+                }}
+                title={session.state.isStreaming ? 'Disabled while streaming' : (session.state.unsavedChanges ? '' : 'No changes')}
+              >
+                <Save className="h-4 w-4 mr-1"/>Save
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4 flex-1 min-h-0 overflow-auto">
+            <TabsContent value="prd" className="mt-0">
+              {!wsConnected && (
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
+                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
+                  <span>Spinning up your workspace… connecting.</span>
+                </div>
+              )}
+              {session.state.isStreaming && (
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
+                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
+                  <span>Building your workspace… streaming PRD. Editing is temporarily disabled.</span>
+                </div>
+              )}
+              <PRDEditor value={prdValue} onChange={onPrdChange} disabled={session.state.isStreaming} />
+            </TabsContent>
+            <TabsContent value="flow" className="mt-0">
+              {!mermaidOk && (
+                <div className="mb-2 rounded-md border border-border/50 bg-amber-50/60 text-amber-900 px-3 py-2 text-xs">
+                  Mermaid render error. Showing last good diagram.
+                </div>
+              )}
+              <FlowchartView code={flowCode} onRenderResult={(ok) => {
+                setMermaidOk(ok)
+                session.markMermaidRendered(ok)
+              }} />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </main>
+
+      {/* Right sidebar */}
+      <aside className="w-96 border-l bg-sidebar flex flex-col h-full shrink-0">
+        <div className="h-12 border-b px-3 flex items-center gap-2 shrink-0">
+          <MessageSquare className="h-4 w-4" /> <span>PRD Agent</span>
+        </div>
+        <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-auto">
+          <div className="flex-1 min-h-0">
+            <ChatPanel
+              mode={mode}
+              messages={messages}
+              input={chatInput}
+              setInput={setChatInput}
+              onSend={onSend}
+              isTyping={isStreaming}
+              lastUpdated={lastUpdated}
+              disabled={isStreaming || session.isBusy()}
+              streamingAssistantContent={session.state.streamingAssistantContent}
+            />
+          </div>
+          <div className="shrink-0">
+            <ModeSegmented compact value={mode} onChange={setMode} />
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
