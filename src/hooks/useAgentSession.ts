@@ -74,6 +74,7 @@ export type UseAgentSessionApi = {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   sendAgentMessage: (content: string, opts?: { silent?: boolean }) => Promise<void>
+  sendChatMessage: (content: string) => Promise<void>
   isBusy: () => boolean
   save: () => Promise<SaveArtifactsResponse>
   saveForce: () => Promise<SaveArtifactsResponse>
@@ -351,6 +352,25 @@ export function useAgentSession(): UseAgentSessionApi {
     await clientInstance.sendAgentTurn(payload)
   }, [state, chatMessagesForPayload, ensureWsClient, answerPendingQuestion])
 
+  const sendChatMessage = useCallback(async (content: string) => {
+    const { projectId } = state
+    if (!projectId || !state.chatId) throw new Error('projectId/chatId not set')
+    const client = ensureWsClient()
+    await client.connect()
+    // Optimistic user echo
+    setState((s) => ({
+      ...s,
+      messages: [...s.messages, { id: uuid(), role: 'user', content, timestamp: nowIso() }],
+      error: undefined,
+    }))
+    await client.sendChatTurn({
+      mode: 'chat',
+      project_id: projectId,
+      content,
+      last_messages: chatMessagesForPayload(),
+    })
+  }, [state, ensureWsClient, chatMessagesForPayload])
+
   const setLensOverride = useCallback((key: keyof ThinkingLensStatus, next: boolean) => {
     setState((s) => ({
       ...s,
@@ -453,6 +473,7 @@ export function useAgentSession(): UseAgentSessionApi {
     connect,
     disconnect,
     sendAgentMessage,
+    sendChatMessage,
     isBusy,
     save,
     saveForce,

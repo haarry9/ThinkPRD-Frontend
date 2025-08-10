@@ -1,8 +1,8 @@
-import { Brain, Bot } from "lucide-react";
+import { Brain, Bot, MessageSquare } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-type Mode = "think" | "agent";
+type Mode = "chat" | "agent";
 
 interface ModeSegmentedProps {
   value: Mode;
@@ -31,18 +31,18 @@ export default function ModeSegmented({ value, onChange, compact }: ModeSegmente
           <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
               <ToggleGroupItem
-                value="think"
+                value="chat"
                 className={itemClasses}
-                aria-label="Think mode"
+                aria-label="Chat mode"
               >
                 <div className={`flex items-center justify-center gap-2 ${textSize}`}>
-                  <Brain className={iconSize} />
-                  <span>Think</span>
+                  <MessageSquare className={iconSize} />
+                  <span>Chat</span>
                 </div>
               </ToggleGroupItem>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-              Brainstorm without changing the PRD.
+              Ask questions grounded in your PRD and uploaded docs.
             </TooltipContent>
           </Tooltip>
 

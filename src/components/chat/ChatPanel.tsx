@@ -18,7 +18,7 @@ export interface ChatMessage {
 }
 
 interface ChatPanelProps {
-  mode: "think" | "agent";
+  mode: "chat" | "agent";
   messages: ChatMessage[];
   input: string;
   setInput: (v: string) => void;
@@ -84,7 +84,7 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={mode === "agent" ? "Ask to update PRD..." : "Brainstorm..."}
+          placeholder={mode === "agent" ? "Ask to update PRD..." : "Ask about your PRD & uploaded docs..."}
           className="min-h-[44px] max-h-40 resize-y"
           rows={2}
           onKeyDown={(e) => {

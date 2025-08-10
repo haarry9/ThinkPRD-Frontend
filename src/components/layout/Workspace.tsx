@@ -35,7 +35,7 @@ export default function Workspace({ initialPRD, initialFlow, initialLens: _initi
   const [collapsed, setCollapsed] = useState(false);
   const [prd, setPrd] = useState(initialPRD);
   const [flow, setFlow] = useState(initialFlow);
-  const [mode, setMode] = useState<"think" | "agent">("agent");
+  const [mode, setMode] = useState<"chat" | "agent">("agent");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "1", role: "assistant", content: "Welcome! Ask me to refine any PRD section.", timestamp: new Date().toISOString() }
   ]);

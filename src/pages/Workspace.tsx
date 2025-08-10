@@ -11,16 +11,18 @@ import FlowchartView from '@/components/FlowchartView'
 import ModeSegmented from '@/components/sidebar/ModeSegmented'
 import ChatPanel from '@/components/chat/ChatPanel'
 import { useAgentSessionContext } from '@/context/AgentSessionContext'
+import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
 /* no longer using inline HITL input banner */
 
 export default function WorkspacePage() {
   const { projectId, chatId } = useParams()
   const session = useAgentSessionContext()
   const [collapsed, setCollapsed] = useState(false)
-  const [mode, setMode] = useState<'think' | 'agent'>('agent')
+  const [mode, setMode] = useState<'chat' | 'agent'>('agent')
   const [chatInput, setChatInput] = useState('')
   const initialRunSentRef = useRef(false)
   const wsReadyRef = useRef(false)
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: string; filename: string; url?: string }>>([])
 
   // Connect/disconnect lifecycle
   useEffect(() => {
@@ -38,6 +40,31 @@ export default function WorkspacePage() {
       }
     }
   }, [projectId, chatId])
+  useEffect(() => {
+    const pid = session.state.projectId
+    if (!pid) return
+    listProjectFiles(pid)
+      .then((res) => setUploadedFiles(res.files || []))
+      .catch(() => {})
+  }, [session.state.projectId, session.state.lastUpdated])
+
+  async function onUploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    try {
+      const pid = session.state.projectId
+      if (!pid) throw new Error('projectId is not set')
+      const files = Array.from(e.target.files || [])
+      if (files.length === 0) return
+      await uploadProjectFiles(pid, files)
+      const res = await listProjectFiles(pid)
+      setUploadedFiles(res.files || [])
+      toast({ title: 'Uploaded', description: `${files.length} file(s) added and indexed` })
+      // Trigger lastUpdated bump to refresh UI
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err?.message || 'Unknown error' })
+    } finally {
+      e.currentTarget.value = ''
+    }
+  }
 
   // Auto-send initial agent run once
   useEffect(() => {
@@ -67,23 +94,31 @@ export default function WorkspacePage() {
 
   const onSend = () => {
     if (!chatInput.trim()) return
-    // If a question is pending, treat this as the answer to resume the agent
-    if (session.state.pendingQuestion) {
-      session.answerPendingQuestion(chatInput.trim())
-        .then(() => setChatInput(''))
-        .catch((e: any) => toast({ title: 'Failed to send answer', description: e?.message || 'Unknown error' }))
-      return
+    if (mode === 'agent') {
+      // If a question is pending, treat this as the answer to resume the agent
+      if (session.state.pendingQuestion) {
+        session.answerPendingQuestion(chatInput.trim())
+          .then(() => setChatInput(''))
+          .catch((e: any) => toast({ title: 'Failed to send answer', description: e?.message || 'Unknown error' }))
+        return
+      }
+      if (isStreaming || session.isBusy()) {
+        const msg = 'Generation in progress. Please wait for the current run to finish.'
+        toast({ title: 'Agent busy', description: msg })
+        return
+      }
+      session.sendAgentMessage(chatInput.trim()).catch((e: any) => {
+        const msg = e?.message || 'Failed to send message'
+        toast({ title: 'Send failed', description: msg })
+      })
+      setChatInput('')
+    } else {
+      session.sendChatMessage(chatInput.trim()).catch((e: any) => {
+        const msg = e?.message || 'Failed to send message'
+        toast({ title: 'Send failed', description: msg })
+      })
+      setChatInput('')
     }
-    if (isStreaming || session.isBusy()) {
-      const msg = 'Generation in progress. Please wait for the current run to finish.'
-      toast({ title: 'Agent busy', description: msg })
-      return
-    }
-    session.sendAgentMessage(chatInput.trim()).catch((e: any) => {
-      const msg = e?.message || 'Failed to send message'
-      toast({ title: 'Send failed', description: msg })
-    })
-    setChatInput('')
   }
 
   const prdValue = session.state.prdMarkdown
@@ -124,9 +159,27 @@ export default function WorkspacePage() {
             <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
               <GitBranch className="h-4 w-4" /> {!collapsed && <span>Flowchart.mmd</span>}
             </div>
-            <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
-              <Link2 className="h-4 w-4" /> {!collapsed && <span>Assets</span>}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 px-2 py-1">
+                <Link2 className="h-4 w-4" /> {!collapsed && <span>Sources</span>}
+              </div>
+              {!collapsed && (
+                <label className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 cursor-pointer">
+                  Upload
+                  <input type="file" accept=".pdf,.md,.txt,.docx" multiple className="hidden" onChange={onUploadFiles} />
+                </label>
+              )}
             </div>
+            {!collapsed && (
+              <div className="pl-8 space-y-1 text-xs text-muted-foreground">
+                {uploadedFiles.map((f) => (
+                  <div key={f.id} className="truncate">{f.filename}</div>
+                ))}
+                {uploadedFiles.length === 0 && (
+                  <div className="text-muted-foreground/70">No sources yet</div>
+                )}
+              </div>
+            )}
           </div>
           <Separator className="my-2" />
           {!collapsed && (

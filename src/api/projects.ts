@@ -18,3 +18,17 @@ export async function rollback(projectId: string, version: string): Promise<Roll
   return extractData<RollbackResponse>(res)
 }
 
+export async function uploadProjectFiles(projectId: string, files: File[]): Promise<{ uploaded_files: any[] }> {
+  const url = apiUrl(`projects/${encodeURIComponent(projectId)}/uploads`)
+  const fd = new FormData()
+  for (const f of files) fd.append('files', f)
+  const res = await request<any>(url, { method: 'POST', body: fd })
+  return extractData<{ uploaded_files: any[] }>(res)
+}
+
+export async function listProjectFiles(projectId: string): Promise<{ files: any[] }> {
+  const url = apiUrl(`projects/${encodeURIComponent(projectId)}/uploads`)
+  const res = await request<any>(url, { method: 'GET' })
+  return extractData<{ files: any[] }>(res)
+}
+

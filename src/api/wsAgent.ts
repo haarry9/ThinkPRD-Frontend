@@ -192,6 +192,21 @@ export class WsAgentClient {
     }
   }
 
+  async sendChatTurn(payload: { mode: 'chat'; project_id: string; content: string; last_messages?: { role: 'user' | 'assistant'; content: string }[] }): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('WebSocket is not connected')
+    }
+    const normalized = {
+      ...payload,
+      last_messages: capLastMessages(payload.last_messages || []),
+    }
+    const msg = {
+      type: 'send_message',
+      data: normalized,
+    }
+    this.ws!.send(JSON.stringify(msg))
+  }
+
   isBusy(): boolean {
     return this.sendInFlight
   }
