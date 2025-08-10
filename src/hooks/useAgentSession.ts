@@ -11,7 +11,7 @@ import type {
 } from '@/api/agent.types'
 import { listVersions as apiListVersions, rollback as apiRollback } from '@/api/projects'
 import { WsAgentClient } from '@/api/wsAgent'
-import type { AgentResumePayload, AgentInterruptRequestEvent } from '@/api/agent.types'
+import type { AgentResumePayload, AgentInterruptRequestEvent, FlowchartTurnPayload } from '@/api/agent.types'
 
 export type ThinkingLensStatus = {
   discovery: boolean
@@ -54,6 +54,9 @@ export type UseAgentSessionState = {
   lastUpdated?: string
   error?: string
   wsConnected: boolean
+  // Flowchart-only run flags
+  isFlowchartStreaming?: boolean
+  flowProgress?: string
   // HITL
   pendingQuestion?: { question_id: string; question: string; lens?: string; rationale?: string }
   uiOverrides?: {
@@ -113,6 +116,7 @@ export function useAgentSession(): UseAgentSessionApi {
     unsavedChanges: false,
     wsConnected: false,
     streamingAssistantContent: '',
+    isFlowchartStreaming: false,
   }))
 
   const wsRef = useRef<WsAgentClient | null>(null)
@@ -133,7 +137,12 @@ export function useAgentSession(): UseAgentSessionApi {
       onDisconnected: () => setState((s) => ({ ...s, wsConnected: false })),
     })
     // Wire events
-    client.on('stream_start', () => {
+    client.on('stream_start', (e) => {
+      const kind = (e as any)?.data?.kind
+      if (kind === 'flowchart') {
+        setState((s) => ({ ...s, isFlowchartStreaming: true, wsConnected: true }))
+        return
+      }
       setState((s) => ({ ...s, isStreaming: true, wsConnected: true, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
     })
@@ -144,6 +153,16 @@ export function useAgentSession(): UseAgentSessionApi {
       setState((s) => ({ ...s, streamingAssistantContent: preview }))
     })
     client.on('artifacts_preview', (e) => {
+      const kind = (e as any)?.data?.kind
+      if (kind === 'flowchart') {
+        setState((s) => ({
+          ...s,
+          mermaid: e.data.mermaid ?? s.mermaid,
+          unsavedChanges: true,
+          lastUpdated: nowIso(),
+        }))
+        return
+      }
       setState((s) => ({
         ...s,
         prdMarkdown: e.data.prd_markdown ?? s.prdMarkdown,
@@ -154,7 +173,13 @@ export function useAgentSession(): UseAgentSessionApi {
         lastUpdated: nowIso(),
       }))
     })
-    client.on('ai_response_complete', () => {
+    client.on('ai_response_complete', (e) => {
+      const kind = (e as any)?.data?.kind
+      if (kind === 'flowchart') {
+        setState((s) => ({ ...s, isFlowchartStreaming: false, lastUpdated: nowIso() }))
+        aiStreamBufferRef.current = ''
+        return
+      }
       const content = aiStreamBufferRef.current
       if (content) {
         setState((s) => ({
@@ -203,6 +228,12 @@ export function useAgentSession(): UseAgentSessionApi {
       } catch {}
     })
     client.on('error', (e) => {
+      const kind = (e as any)?.data?.kind
+      if (kind === 'flowchart') {
+        setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isFlowchartStreaming: false }))
+        aiStreamBufferRef.current = ''
+        return
+      }
       setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isStreaming: false, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
     })
@@ -381,8 +412,25 @@ export function useAgentSession(): UseAgentSessionApi {
   }, [])
 
   const isBusy = useCallback(() => {
-    return !!state.isStreaming || !!wsRef.current?.isBusy()
-  }, [state.isStreaming])
+    return !!state.isStreaming || !!state.isFlowchartStreaming || !!wsRef.current?.isBusy()
+  }, [state.isStreaming, state.isFlowchartStreaming])
+
+  const generateFlowchart = useCallback(async () => {
+    const { projectId, prdMarkdown, mermaid } = state
+    if (!projectId || !state.chatId) throw new Error('projectId/chatId not set')
+    const client = ensureWsClient()
+    if (client.isBusy()) throw new Error('Generation in progress. Please wait to finish.')
+    await client.connect()
+    setState((s) => ({ ...s, isFlowchartStreaming: true, flowProgress: mermaid ? 'updating flowchart…' : 'generating flowchart…' }))
+    const payload: FlowchartTurnPayload = {
+      mode: 'flowchart',
+      project_id: projectId,
+      base_prd_markdown: prdMarkdown,
+      base_mermaid: mermaid || state.lastGoodMermaid || undefined,
+      client_run_id: uuid(),
+    }
+    await client.sendFlowchartTurn(payload)
+  }, [state, ensureWsClient])
 
   const save = useCallback(async () => {
     const { projectId, prdMarkdown, mermaid, etag } = state
@@ -484,6 +532,7 @@ export function useAgentSession(): UseAgentSessionApi {
     markMermaidRendered,
     clearError,
     applyServerDrafts,
+    generateFlowchart,
     // HITL
     answerPendingQuestion,
     setLensOverride,

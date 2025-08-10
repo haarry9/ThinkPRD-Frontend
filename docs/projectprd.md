@@ -5,7 +5,6 @@ alwaysApply: true
 
 ## Overview
 
-The AI PRD Generator is an intelligent application that transforms one-liner product ideas into comprehensive Product Requirements Documents (PRDs) through AI-powered clarification, analysis, and iterative refinement. The system leverages the "Thinking Lens" criteria (Discovery, User Journey, Metrics, GTM, Risks) to ensure thorough coverage of all critical product aspects.
 
 ### Core Value Proposition
 - **Speed**: Convert ideas to detailed PRDs in minutes instead of hours
@@ -384,7 +383,8 @@ S3 Structure:
    - Advanced chat search with semantic similarity
    - Chat templates or conversation starters
    - Integration with external chat platforms (Slack, Discord)
-### Technical Limitations
+### Technical LimitationsThe AI PRD Generator is an intelligent application that transforms one-liner product ideas into comprehensive Product Requirements Documents (PRDs) through AI-powered clarification, analysis, and iterative refinement. The system leverages the "Thinking Lens" criteria (Discovery, User Journey, Metrics, GTM, Risks) to ensure thorough coverage of all critical product aspects.
+
 
 1. **Fallback Mechanisms**: Limited error handling for AI model failures or hallucinations
 2. **Performance Optimization**: No caching layer for repeated AI operations

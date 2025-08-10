@@ -12,6 +12,7 @@ import type {
   AgentInterruptClearedEvent,
   AgentResumePayload,
   MessageSentEvent,
+  FlowchartTurnPayload,
 } from '@/api/agent.types'
 
 type ListenerMap = {
@@ -189,6 +190,26 @@ export class WsAgentClient {
       this.ws!.send(JSON.stringify(msg))
     } finally {
       // Do not reset sendInFlight here; complete will release it
+    }
+  }
+
+  async sendFlowchartTurn(payload: FlowchartTurnPayload): Promise<void> {
+    if (!this.isConnected()) {
+      throw new Error('WebSocket is not connected')
+    }
+    if (this.sendInFlight) {
+      throw new Error('An agent run is already in flight')
+    }
+    // Flowchart runs are serialized by the same in-flight flag for simplicity
+    this.sendInFlight = true
+    try {
+      const msg = {
+        type: 'send_message',
+        data: payload,
+      }
+      this.ws!.send(JSON.stringify(msg))
+    } finally {
+      // Release on completion/error events as with agent turns
     }
   }
 

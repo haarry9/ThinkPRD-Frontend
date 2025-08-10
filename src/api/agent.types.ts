@@ -65,7 +65,7 @@ export type RollbackResponse = {
 // WS events
 export type StreamStartEvent = {
   type: 'stream_start'
-  data: { project_id: string; client_run_id?: string }
+  data: { project_id: string; client_run_id?: string; kind?: 'flowchart' }
 }
 
 export type AiResponseStreamingEvent = {
@@ -78,6 +78,7 @@ export type ArtifactsPreviewEvent = {
   data: {
     prd_markdown: string
     mermaid: string | null
+    kind?: 'flowchart'
     thinking_lens_status?: {
       discovery: boolean
       user_journey: boolean
@@ -91,7 +92,7 @@ export type ArtifactsPreviewEvent = {
 
 export type AiResponseCompleteEvent = {
   type: 'ai_response_complete'
-  data: { message: string; provider?: string; model?: string; response_time_ms?: number }
+  data: { message: string; provider?: string; model?: string; response_time_ms?: number; kind?: 'flowchart' }
 }
 
 export type WsErrorEvent = {
@@ -155,4 +156,13 @@ export type AgentTurnPayload = {
 export type AgentResumePayload =
   | { answer: { question_id: string; text: string } }
   | { accept: { question_id: string; finish?: boolean } }
+
+// Flowchart-only WS payload (client → server)
+export type FlowchartTurnPayload = {
+  mode: 'flowchart'
+  project_id: string
+  base_prd_markdown: string
+  base_mermaid?: string
+  client_run_id?: string
+}
 
