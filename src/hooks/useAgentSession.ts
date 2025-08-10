@@ -12,8 +12,8 @@ import type {
 import { listVersions as apiListVersions, rollback as apiRollback } from '@/api/projects'
 import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
 import { WsAgentClient } from '@/api/wsAgent'
-import type { AgentResumePayload, AgentInterruptRequestEvent } from '@/api/agent.types'
 import { toast } from '@/components/ui/use-toast'
+import type { AgentResumePayload, AgentInterruptRequestEvent, FlowchartTurnPayload } from '@/api/agent.types'
 
 export type ThinkingLensStatus = {
   discovery: boolean
@@ -150,8 +150,6 @@ export function useAgentSession(): UseAgentSessionApi {
         setState((s) => ({ ...s, isFlowchartStreaming: true, wsConnected: true }))
         return
       }
-    client.on('stream_start', () => {
-      try { console.debug('[WS] stream_start') } catch {}
       setState((s) => ({ ...s, isStreaming: true, wsConnected: true, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
     })
@@ -190,8 +188,6 @@ export function useAgentSession(): UseAgentSessionApi {
         aiStreamBufferRef.current = ''
         return
       }
-    client.on('ai_response_complete', () => {
-      try { console.debug('[WS] ai_response_complete') } catch {}
       const content = aiStreamBufferRef.current
       if (content) {
         setState((s) => ({
@@ -249,7 +245,6 @@ export function useAgentSession(): UseAgentSessionApi {
         aiStreamBufferRef.current = ''
         return
       }
-      try { console.debug('[WS] error', (e as any)?.data) } catch {}
       setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isStreaming: false, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
     })
