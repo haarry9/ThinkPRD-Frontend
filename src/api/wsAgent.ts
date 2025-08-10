@@ -298,6 +298,12 @@ export class WsAgentClient {
         break
       }
       case 'agent_interrupt_request': {
+        // Allow user to respond while the agent waits for input
+        this.releaseSendFlight()
+        if (this.streamTimeoutId) {
+          clearTimeout(this.streamTimeoutId)
+          this.streamTimeoutId = null
+        }
         this.emit('agent_interrupt_request', parsed as AgentInterruptRequestEvent)
         break
       }

@@ -312,11 +312,7 @@ export function useAgentSession(): UseAgentSessionApi {
     const { projectId, prdMarkdown, mermaid, initialIdea, clarifications } = state
     if (!projectId || !state.chatId) throw new Error('projectId/chatId not set')
 
-    // If there is a pending question, treat this message as the answer and resume
-    if (state.pendingQuestion) {
-      await answerPendingQuestion(content)
-      return
-    }
+    // During HITL, always send the raw message; backend will classify whether it's an answer
 
     const client = ensureWsClient()
     if (client.isBusy()) {
