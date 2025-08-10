@@ -40,13 +40,25 @@ export default function WorkspacePage() {
       }
     }
   }, [projectId, chatId])
+  // Fetch once when project changes
   useEffect(() => {
     const pid = session.state.projectId
     if (!pid) return
     listProjectFiles(pid)
       .then((res) => setUploadedFiles(res.files || []))
       .catch(() => {})
-  }, [session.state.projectId, session.state.lastUpdated])
+  }, [session.state.projectId])
+
+  // Refresh file list when an attachment finishes indexing
+  useEffect(() => {
+    const pid = session.state.projectId
+    if (!pid) return
+    if (session.state.attachmentStatus === 'ready') {
+      listProjectFiles(pid)
+        .then((res) => setUploadedFiles(res.files || []))
+        .catch(() => {})
+    }
+  }, [session.state.attachmentStatus, session.state.projectId])
 
   async function onUploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
     try {
@@ -163,12 +175,7 @@ export default function WorkspacePage() {
               <div className="flex items-center gap-2 px-2 py-1">
                 <Link2 className="h-4 w-4" /> {!collapsed && <span>Sources</span>}
               </div>
-              {!collapsed && (
-                <label className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 cursor-pointer">
-                  Upload
-                  <input type="file" accept=".pdf,.md,.txt,.docx" multiple className="hidden" onChange={onUploadFiles} />
-                </label>
-              )}
+              {/* Upload moved to chat input (single PDF). Left panel upload control removed. */}
             </div>
             {!collapsed && (
               <div className="pl-8 space-y-1 text-xs text-muted-foreground">
@@ -297,6 +304,14 @@ export default function WorkspacePage() {
               lastUpdated={lastUpdated}
               disabled={isStreaming || session.isBusy()}
               streamingAssistantContent={session.state.streamingAssistantContent}
+              onUploadPdf={async (f) => {
+                try {
+                  await session.uploadChatAttachment(f)
+                } catch (e: any) {
+                  toast({ title: 'Upload failed', description: e?.message || 'Unknown error' })
+                }
+              }}
+              attachmentStatus={session.state.attachmentStatus}
             />
           </div>
           <div className="shrink-0">
@@ -307,4 +322,5 @@ export default function WorkspacePage() {
     </div>
   )
 }
+
 

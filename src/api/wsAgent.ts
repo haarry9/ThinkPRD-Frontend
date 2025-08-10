@@ -12,6 +12,7 @@ import type {
   AgentInterruptClearedEvent,
   AgentResumePayload,
   MessageSentEvent,
+  FileIndexedEvent,
 } from '@/api/agent.types'
 
 type ListenerMap = {
@@ -23,6 +24,7 @@ type ListenerMap = {
   agent_interrupt_request: Set<(e: AgentInterruptRequestEvent) => void>
   agent_interrupt_cleared: Set<(e: AgentInterruptClearedEvent) => void>
   message_sent: Set<(e: MessageSentEvent) => void>
+  file_indexed: Set<(e: FileIndexedEvent) => void>
 }
 
 function createListeners(): ListenerMap {
@@ -35,6 +37,7 @@ function createListeners(): ListenerMap {
     agent_interrupt_request: new Set(),
     agent_interrupt_cleared: new Set(),
     message_sent: new Set(),
+    file_indexed: new Set(),
   }
 }
 
@@ -192,7 +195,7 @@ export class WsAgentClient {
     }
   }
 
-  async sendChatTurn(payload: { mode: 'chat'; project_id: string; content: string; last_messages?: { role: 'user' | 'assistant'; content: string }[] }): Promise<void> {
+  async sendChatTurn(payload: { mode: 'chat'; project_id: string; content: string; last_messages?: { role: 'user' | 'assistant'; content: string }[]; attachment_file_id?: string; prd_markdown?: string }): Promise<void> {
     if (!this.isConnected()) {
       throw new Error('WebSocket is not connected')
     }
@@ -251,6 +254,7 @@ export class WsAgentClient {
   }
 
   private onMessage = (event: MessageEvent) => {
+    try { console.debug('[WS RAW]', (event && (event as any).data) ? String((event as any).data).slice(0, 160) : '') } catch {}
     let parsed: AgentWsEvent | null = null
     try {
       parsed = JSON.parse(event.data)
@@ -269,6 +273,7 @@ export class WsAgentClient {
 
     switch (parsed.type) {
       case 'stream_start': {
+        try { console.debug('[WS EVT] stream_start') } catch {}
         // Start safety timeout in case complete/error never arrives
         if (this.streamTimeoutId) {
           clearTimeout(this.streamTimeoutId)
@@ -287,14 +292,17 @@ export class WsAgentClient {
         break
       }
       case 'ai_response_streaming': {
+        try { console.debug('[WS EVT] ai_response_streaming') } catch {}
         this.emit('ai_response_streaming', parsed as AiResponseStreamingEvent)
         break
       }
       case 'artifacts_preview': {
+        try { console.debug('[WS EVT] artifacts_preview') } catch {}
         this.emit('artifacts_preview', parsed as ArtifactsPreviewEvent)
         break
       }
       case 'message_sent': {
+        try { console.debug('[WS EVT] message_sent') } catch {}
         // De-dupe by message_id
         try {
           const ev = parsed as unknown as MessageSentEvent
@@ -312,7 +320,13 @@ export class WsAgentClient {
         this.emit('message_sent', parsed as unknown as MessageSentEvent)
         break
       }
+      case 'file_indexed': {
+        try { console.debug('[WS EVT] file_indexed') } catch {}
+        this.emit('file_indexed', parsed as unknown as FileIndexedEvent)
+        break
+      }
       case 'agent_interrupt_request': {
+        try { console.debug('[WS EVT] agent_interrupt_request') } catch {}
         // Allow user to respond while the agent waits for input
         this.releaseSendFlight()
         if (this.streamTimeoutId) {
@@ -323,10 +337,12 @@ export class WsAgentClient {
         break
       }
       case 'agent_interrupt_cleared': {
+        try { console.debug('[WS EVT] agent_interrupt_cleared') } catch {}
         this.emit('agent_interrupt_cleared', parsed as AgentInterruptClearedEvent)
         break
       }
       case 'ai_response_complete': {
+        try { console.debug('[WS EVT] ai_response_complete') } catch {}
         this.emit('ai_response_complete', parsed as AiResponseCompleteEvent)
         this.releaseSendFlight()
         if (this.streamTimeoutId) {
@@ -336,6 +352,7 @@ export class WsAgentClient {
         break
       }
       case 'error': {
+        try { console.debug('[WS EVT] error') } catch {}
         this.emit('error', parsed as WsErrorEvent)
         this.releaseSendFlight()
         if (this.streamTimeoutId) {

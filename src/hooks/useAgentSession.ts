@@ -10,8 +10,10 @@ import type {
   VersionItem,
 } from '@/api/agent.types'
 import { listVersions as apiListVersions, rollback as apiRollback } from '@/api/projects'
+import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
 import { WsAgentClient } from '@/api/wsAgent'
 import type { AgentResumePayload, AgentInterruptRequestEvent } from '@/api/agent.types'
+import { toast } from '@/components/ui/use-toast'
 
 export type ThinkingLensStatus = {
   discovery: boolean
@@ -61,6 +63,9 @@ export type UseAgentSessionState = {
   }
   // Live assistant stream preview for chat bubble
   streamingAssistantContent?: string
+  // Chat-mode attachment state (single file for next message only)
+  pendingAttachmentFileId?: string
+  attachmentStatus?: 'idle' | 'uploading' | 'indexing' | 'ready' | 'error'
 }
 
 export type UseAgentSessionApi = {
@@ -113,6 +118,8 @@ export function useAgentSession(): UseAgentSessionApi {
     unsavedChanges: false,
     wsConnected: false,
     streamingAssistantContent: '',
+    pendingAttachmentFileId: undefined,
+    attachmentStatus: 'idle',
   }))
 
   const wsRef = useRef<WsAgentClient | null>(null)
@@ -134,10 +141,12 @@ export function useAgentSession(): UseAgentSessionApi {
     })
     // Wire events
     client.on('stream_start', () => {
+      try { console.debug('[WS] stream_start') } catch {}
       setState((s) => ({ ...s, isStreaming: true, wsConnected: true, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
     })
     client.on('ai_response_streaming', (e) => {
+      try { console.debug('[WS] ai_response_streaming', e?.data?.delta?.slice?.(0, 80) || '') } catch {}
       aiStreamBufferRef.current += e.data.delta || ''
       const preview = aiStreamBufferRef.current
       // Show live stream in chat pane
@@ -155,6 +164,7 @@ export function useAgentSession(): UseAgentSessionApi {
       }))
     })
     client.on('ai_response_complete', () => {
+      try { console.debug('[WS] ai_response_complete') } catch {}
       const content = aiStreamBufferRef.current
       if (content) {
         setState((s) => ({
@@ -172,6 +182,7 @@ export function useAgentSession(): UseAgentSessionApi {
     // If a question is pending and assistant completes an ack, keep pendingQuestion as-is
     // so the next user message routes to answerPendingQuestion.
     client.on('agent_interrupt_request', (e) => {
+      try { console.debug('[WS] agent_interrupt_request', (e as any)?.data) } catch {}
       const data = (e as AgentInterruptRequestEvent).data
       setState((s) => ({
         ...s,
@@ -183,10 +194,12 @@ export function useAgentSession(): UseAgentSessionApi {
       }))
     })
     client.on('agent_interrupt_cleared', () => {
+      try { console.debug('[WS] agent_interrupt_cleared') } catch {}
       setState((s) => ({ ...s, pendingQuestion: undefined }))
     })
     client.on('message_sent', (e: any) => {
       try {
+        try { console.debug('[WS] message_sent', (e as any)?.data?.message_type) } catch {}
         const evt = e as { type: 'message_sent'; data: { content: string; message_type: 'user' | 'assistant'; timestamp: string } }
         setState((s) => ({
           ...s,
@@ -203,8 +216,19 @@ export function useAgentSession(): UseAgentSessionApi {
       } catch {}
     })
     client.on('error', (e) => {
+      try { console.debug('[WS] error', (e as any)?.data) } catch {}
       setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isStreaming: false, streamingAssistantContent: '' }))
       aiStreamBufferRef.current = ''
+    })
+    // File indexed notification to flip UI state from 'indexing' → 'ready' proactively
+    client.on('file_indexed' as any, (e: any) => {
+      try { console.debug('[WS] file_indexed', e?.data) } catch {}
+      const data = (e as any)?.data || {}
+      const fileId = String(data.file_id || '')
+      setState((s) => {
+        if (!fileId || s.pendingAttachmentFileId !== fileId) return s
+        return { ...s, attachmentStatus: 'ready', lastUpdated: nowIso() }
+      })
     })
     wsRef.current = client
     return client
@@ -356,19 +380,28 @@ export function useAgentSession(): UseAgentSessionApi {
     const { projectId } = state
     if (!projectId || !state.chatId) throw new Error('projectId/chatId not set')
     const client = ensureWsClient()
+    try { console.debug('[CHAT] sendChatMessage connect') } catch {}
     await client.connect()
-    // Optimistic user echo
-    setState((s) => ({
-      ...s,
-      messages: [...s.messages, { id: uuid(), role: 'user', content, timestamp: nowIso() }],
-      error: undefined,
-    }))
-    await client.sendChatTurn({
+    // Do not optimistically echo; rely on server 'message_sent' to avoid duplicates
+    setState((s) => ({ ...s, error: undefined }))
+    const payload: any = {
       mode: 'chat',
       project_id: projectId,
       content,
       last_messages: chatMessagesForPayload(),
-    })
+    }
+    // Include one-time attachment if ready or in indexing (server will fall back if not ready)
+    if (state.pendingAttachmentFileId) {
+      payload.attachment_file_id = state.pendingAttachmentFileId
+    }
+    // Include unsaved PRD for ephemeral summary
+    if (state.unsavedChanges && state.prdMarkdown) {
+      payload.prd_markdown = state.prdMarkdown
+    }
+    try { console.debug('[CHAT] sendChatMessage payload', { hasAttachment: !!payload.attachment_file_id }) } catch {}
+    await client.sendChatTurn(payload)
+    // Clear one-time attachment after send
+    setState((s) => ({ ...s, pendingAttachmentFileId: undefined, attachmentStatus: s.attachmentStatus === 'ready' ? 'idle' : s.attachmentStatus }))
   }, [state, ensureWsClient, chatMessagesForPayload])
 
   const setLensOverride = useCallback((key: keyof ThinkingLensStatus, next: boolean) => {
@@ -455,6 +488,65 @@ export function useAgentSession(): UseAgentSessionApi {
     }))
   }, [])
 
+  const uploadChatAttachment = useCallback(async (file: File) => {
+    const { projectId } = state
+    if (!projectId) throw new Error('projectId is not set')
+    if (!file) return
+    if (file.type !== 'application/pdf') throw new Error('Only PDF files are supported')
+    if (file.size > 5 * 1024 * 1024) throw new Error('Max size is 5MB')
+    setState((s) => ({ ...s, attachmentStatus: 'uploading' }))
+    try { console.debug('[ATTACH] uploading', { name: file.name, size: file.size }) } catch {}
+    try {
+      const res = await uploadProjectFiles(projectId, [file])
+      try { toast({ title: 'Uploaded', description: 'File received. Indexing…' }) } catch {}
+      const up = (res as any).uploaded_files?.[0]
+      if (!up) throw new Error('Upload failed')
+      const fileId: string = up.id
+      const indexed: boolean = !!up.indexed
+      if (indexed) {
+        try { console.debug('[ATTACH] already indexed', { fileId }) } catch {}
+        setState((s) => ({ ...s, pendingAttachmentFileId: fileId, attachmentStatus: 'ready' }))
+        return
+      }
+      setState((s) => ({ ...s, pendingAttachmentFileId: fileId, attachmentStatus: 'indexing' }))
+      try { console.debug('[ATTACH] awaiting indexing (ws)', { fileId }) } catch {}
+      // Wait for a WS event to avoid any polling
+      try {
+        const client = ensureWsClient()
+        await client.connect()
+        const gotEvent = await new Promise<boolean>((resolve) => {
+          let settled = false
+          const off = client.on('file_indexed' as any, (ev: any) => {
+            const id = (ev?.data?.file_id || '') as string
+            if (id === fileId && !settled) {
+              settled = true
+              try { off() } catch {}
+              resolve(true)
+            }
+          })
+          setTimeout(() => {
+            if (!settled) {
+              settled = true
+              try { off() } catch {}
+              resolve(false)
+            }
+          }, 45_000)
+        })
+        if (gotEvent) {
+          try { console.debug('[ATTACH] ws file_indexed received', { fileId }) } catch {}
+          setState((s) => ({ ...s, pendingAttachmentFileId: fileId, attachmentStatus: 'ready', lastUpdated: nowIso() }))
+          try { toast({ title: 'Document ready for retrieval', description: 'The uploaded PDF will be used for your next message.' }) } catch {}
+          return
+        }
+      } catch {}
+      // If still not ready, keep in indexing state and let server fall back at answer time
+    } catch (e) {
+      try { console.debug('[ATTACH] error', e) } catch {}
+      setState((s) => ({ ...s, attachmentStatus: 'error' }))
+      throw e
+    }
+  }, [state])
+
   // Cleanup event listeners and WS on unmount
   useEffect(() => {
     return () => {
@@ -487,6 +579,8 @@ export function useAgentSession(): UseAgentSessionApi {
     // HITL
     answerPendingQuestion,
     setLensOverride,
+    // Chat-mode attachment
+    uploadChatAttachment,
   }
 }
 

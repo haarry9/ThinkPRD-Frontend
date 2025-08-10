@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Send, Paperclip } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TypingDots from "./TypingDots";
@@ -27,10 +27,13 @@ interface ChatPanelProps {
   lastUpdated?: string | null;
   disabled?: boolean;
   streamingAssistantContent?: string;
+  onUploadPdf?: (file: File) => Promise<void>;
+  attachmentStatus?: 'idle' | 'uploading' | 'indexing' | 'ready' | 'error';
 }
 
-export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated, disabled, streamingAssistantContent }: ChatPanelProps) {
+export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated, disabled, streamingAssistantContent, onUploadPdf, attachmentStatus }: ChatPanelProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,6 +84,18 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
         }}
         className="flex items-end gap-2"
       >
+        {mode === 'chat' && (
+          <>
+            <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={async (e) => {
+              const f = e.target.files?.[0]
+              if (!f || !onUploadPdf) return
+              try { await onUploadPdf(f) } finally { if (fileInputRef.current) fileInputRef.current.value = '' }
+            }} />
+            <Button type="button" variant="ghost" size="icon" title={attachmentStatus === 'indexing' ? 'Indexing…' : 'Attach PDF'} onClick={() => fileInputRef.current?.click()}>
+              <Paperclip className="h-4 w-4" />
+            </Button>
+          </>
+        )}
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -99,6 +114,14 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
           <Send className="h-4 w-4" />
         </Button>
       </form>
+      {mode === 'chat' && attachmentStatus && attachmentStatus !== 'idle' && (
+        <div className="text-xs text-muted-foreground">
+          {attachmentStatus === 'uploading' && 'Uploading PDF…'}
+          {attachmentStatus === 'indexing' && 'Indexing PDF… You can still ask; I will answer from PRD until ready.'}
+          {attachmentStatus === 'ready' && 'Document ready. It will be used for your next message.'}
+          {attachmentStatus === 'error' && 'Attachment failed.'}
+        </div>
+      )}
 
       <div className="text-[10px] text-muted-foreground text-right">Powered by ThinkPRD Agent{lastUpdated ? ` • Last updated ${lastUpdated}` : ""}</div>
     </div>

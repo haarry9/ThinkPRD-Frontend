@@ -104,6 +104,11 @@ export type MessageSentEvent = {
   data: { message_id: string; user_id: string; content: string; timestamp: string; message_type: 'user' | 'assistant' }
 }
 
+export type FileIndexedEvent = {
+  type: 'file_indexed'
+  data: { project_id: string; file_id: string; filename: string; num_chunks: number }
+}
+
 export type AgentInterruptRequestEvent = {
   type: 'agent_interrupt_request'
   data: { question_id: string; question: string; lens?: string; rationale?: string }
@@ -123,6 +128,7 @@ export type AgentWsEvent =
   | MessageSentEvent
   | AgentInterruptRequestEvent
   | AgentInterruptClearedEvent
+  | FileIndexedEvent
 
 // Payloads for client → server (WS)
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
