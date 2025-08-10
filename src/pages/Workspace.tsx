@@ -12,6 +12,7 @@ import ModeSegmented from '@/components/sidebar/ModeSegmented'
 import ChatPanel from '@/components/chat/ChatPanel'
 import { useAgentSessionContext } from '@/context/AgentSessionContext'
 import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
+import { ENABLE_FLOWCHART_BUTTON } from '@/api/config'
 /* no longer using inline HITL input banner */
 
 export default function WorkspacePage() {
@@ -100,6 +101,7 @@ export default function WorkspacePage() {
 
   const messages = session.state.messages
   const isStreaming = session.state.isStreaming
+  const isFlowStreaming = !!session.state.isFlowchartStreaming
   const wsConnected = session.state.wsConnected
   const lastUpdated = session.state.lastUpdated
   // Thinking lens UI removed from sidebar; we still keep state internally in session
@@ -227,6 +229,26 @@ export default function WorkspacePage() {
               >
                 <History className="h-4 w-4 mr-1"/>History
               </Button>
+              {ENABLE_FLOWCHART_BUTTON && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!session.state.projectId || isStreaming || isFlowStreaming}
+                onClick={async () => {
+                  try {
+                    await session.generateFlowchart()
+                    // Auto-switch to Flow tab by simulating a click: Tabs is controlled by defaultValue only; rely on DOM
+                    const trigger = document.querySelector('[data-state][value="flow"]') as HTMLElement | null
+                    trigger?.click()
+                  } catch (e: any) {
+                    toast({ title: 'Flowchart', description: e?.message || 'Failed to start flowchart run' })
+                  }
+                }}
+                title={isFlowStreaming ? 'Flowchart run in progress' : ''}
+              >
+                {session.state.mermaid ? 'Update Flowchart' : 'Generate Flowchart'}
+              </Button>
+              )}
               <Button
                 size="sm"
                 disabled={session.state.isStreaming || !session.state.unsavedChanges}
@@ -273,6 +295,12 @@ export default function WorkspacePage() {
               <PRDEditor value={prdValue} onChange={onPrdChange} disabled={session.state.isStreaming} />
             </TabsContent>
             <TabsContent value="flow" className="mt-0">
+              {isFlowStreaming && (
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
+                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
+                  <span>{session.state.mermaid ? 'Updating flowchart…' : 'Generating flowchart…'}</span>
+                </div>
+              )}
               {!mermaidOk && (
                 <div className="mb-2 rounded-md border border-border/50 bg-amber-50/60 text-amber-900 px-3 py-2 text-xs">
                   Mermaid render error. Showing last good diagram.
