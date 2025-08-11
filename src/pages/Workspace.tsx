@@ -121,12 +121,14 @@ export default function WorkspacePage() {
         toast({ title: 'Agent busy', description: msg })
         return
       }
+      // Immediately show local typing indicator for responsiveness
       session.sendAgentMessage(chatInput.trim()).catch((e: any) => {
         const msg = e?.message || 'Failed to send message'
         toast({ title: 'Send failed', description: msg })
       })
       setChatInput('')
     } else {
+      // Chat mode: immediate thinking indicator is set in hook
       session.sendChatMessage(chatInput.trim()).catch((e: any) => {
         const msg = e?.message || 'Failed to send message'
         toast({ title: 'Send failed', description: msg })
@@ -301,11 +303,7 @@ export default function WorkspacePage() {
                   <span>{session.state.mermaid ? 'Updating flowchart…' : 'Generating flowchart…'}</span>
                 </div>
               )}
-              {!mermaidOk && (
-                <div className="mb-2 rounded-md border border-border/50 bg-amber-50/60 text-amber-900 px-3 py-2 text-xs">
-                  Mermaid render error. Showing last good diagram.
-                </div>
-              )}
+            
               <FlowchartView code={flowCode} onRenderResult={(ok) => {
                 setMermaidOk(ok)
                 session.markMermaidRendered(ok)

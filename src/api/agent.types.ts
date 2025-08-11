@@ -160,8 +160,8 @@ export type AgentTurnPayload = {
 }
 
 export type AgentResumePayload =
-  | { answer: { question_id: string; text: string } }
-  | { accept: { question_id: string; finish?: boolean } }
+  | { answer: { question_id: string; text: string }; attachment_file_id?: string }
+  | { accept: { question_id: string; finish?: boolean }; attachment_file_id?: string }
 
 // Flowchart-only WS payload (client → server)
 export type FlowchartTurnPayload = {

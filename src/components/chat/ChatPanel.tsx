@@ -84,14 +84,27 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
         }}
         className="flex items-end gap-2"
       >
-        {mode === 'chat' && (
+        {onUploadPdf && (
           <>
-            <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={async (e) => {
-              const f = e.target.files?.[0]
-              if (!f || !onUploadPdf) return
-              try { await onUploadPdf(f) } finally { if (fileInputRef.current) fileInputRef.current.value = '' }
-            }} />
-            <Button type="button" variant="ghost" size="icon" title={attachmentStatus === 'indexing' ? 'Indexing…' : 'Attach PDF'} onClick={() => fileInputRef.current?.click()}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0]
+                if (!f) return
+                try { await onUploadPdf(f) } finally { if (fileInputRef.current) fileInputRef.current.value = '' }
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title={attachmentStatus === 'indexing' ? 'Indexing…' : 'Attach PDF'}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+            >
               <Paperclip className="h-4 w-4" />
             </Button>
           </>
@@ -110,11 +123,17 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
           }}
           disabled={disabled}
         />
-        <Button type="submit" disabled={!input.trim() || !!disabled} title={disabled ? 'Disabled while streaming' : undefined}>
+        <Button type="submit" disabled={!input.trim() || !!disabled} title={disabled ? 'Disabled while streaming' : undefined}
+          onClick={(e) => {
+            // Defensive: if form submit handler doesn't run (rare), still request send
+            if (!input.trim() || disabled) return;
+            onSend();
+          }}
+        >
           <Send className="h-4 w-4" />
         </Button>
       </form>
-      {mode === 'chat' && attachmentStatus && attachmentStatus !== 'idle' && (
+      {attachmentStatus && attachmentStatus !== 'idle' && (
         <div className="text-xs text-muted-foreground">
           {attachmentStatus === 'uploading' && 'Uploading PDF…'}
           {attachmentStatus === 'indexing' && 'Indexing PDF… You can still ask; I will answer from PRD until ready.'}

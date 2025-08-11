@@ -93,9 +93,12 @@ export type UseAgentSessionApi = {
   markMermaidRendered: (ok: boolean) => void
   clearError: () => void
   applyServerDrafts: (prd: string, mmd: string) => void
+  generateFlowchart: () => Promise<void>
   // HITL controls
   answerPendingQuestion: (text: string) => Promise<void>
   setLensOverride: (key: keyof ThinkingLensStatus, next: boolean) => void
+  // Chat attachments
+  uploadChatAttachment: (file: File) => Promise<void>
 }
 
 function nowIso(): string {
@@ -346,11 +349,15 @@ export function useAgentSession(): UseAgentSessionApi {
     const q = state.pendingQuestion
     if (!q) throw new Error('No pending question')
     // Interpret special commands
-    const payload: AgentResumePayload = text === '__FINISH__'
+    const basePayload: AgentResumePayload = text === '__FINISH__'
       ? { accept: { question_id: q.question_id, finish: true } }
       : (text.trim().length > 0
           ? { answer: { question_id: q.question_id, text } }
           : { accept: { question_id: q.question_id } })
+    // If a single-file attachment is ready, include it so server can bias agent-mode RAG
+    const payload: AgentResumePayload = state.pendingAttachmentFileId && state.attachmentStatus === 'ready'
+      ? { ...(basePayload as any), attachment_file_id: state.pendingAttachmentFileId }
+      : basePayload
     // Optimistically append the user's answer to chat
     if (text && text !== '__FINISH__') {
       setState((s) => ({
@@ -358,6 +365,8 @@ export function useAgentSession(): UseAgentSessionApi {
         messages: [...s.messages, { id: uuid(), role: 'user', content: text, timestamp: nowIso() }],
       }))
     }
+    // Immediately show thinking/typing indicator for agent ack/incorporation
+    setState((s) => ({ ...s, isStreaming: true, streamingAssistantContent: '' }))
     await wsRef.current.sendAgentResume(payload)
   }, [state.pendingQuestion])
 
@@ -373,15 +382,17 @@ export function useAgentSession(): UseAgentSessionApi {
     }
     const clientRunId = uuid()
     runIdRef.current = clientRunId
-    // Push user message immediately unless silent
+    // Push user message immediately unless silent and show thinking loader immediately
     if (!opts?.silent) {
       setState((s) => ({
         ...s,
         messages: [...s.messages, { id: uuid(), role: 'user', content, timestamp: nowIso() }],
         error: undefined,
+        isStreaming: true,
+        streamingAssistantContent: '',
       }))
     } else {
-      setState((s) => ({ ...s, error: undefined }))
+      setState((s) => ({ ...s, error: undefined, isStreaming: true, streamingAssistantContent: '' }))
     }
     const payload: AgentTurnPayload = {
       mode: 'agent',
@@ -411,7 +422,8 @@ export function useAgentSession(): UseAgentSessionApi {
     try { console.debug('[CHAT] sendChatMessage connect') } catch {}
     await client.connect()
     // Do not optimistically echo; rely on server 'message_sent' to avoid duplicates
-    setState((s) => ({ ...s, error: undefined }))
+    // But set immediate typing indicator for responsiveness
+    setState((s) => ({ ...s, error: undefined, isStreaming: true, streamingAssistantContent: '' }))
     const payload: any = {
       mode: 'chat',
       project_id: projectId,
@@ -428,6 +440,7 @@ export function useAgentSession(): UseAgentSessionApi {
     }
     try { console.debug('[CHAT] sendChatMessage payload', { hasAttachment: !!payload.attachment_file_id }) } catch {}
     await client.sendChatTurn(payload)
+    // After send, keep isStreaming true until stream_start or error/complete; no change here
     // Clear one-time attachment after send
     setState((s) => ({ ...s, pendingAttachmentFileId: undefined, attachmentStatus: s.attachmentStatus === 'ready' ? 'idle' : s.attachmentStatus }))
   }, [state, ensureWsClient, chatMessagesForPayload])

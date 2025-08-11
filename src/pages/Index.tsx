@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from '@/hooks/useAuth'
 import { useMemo } from 'react'
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Plus, Mic, AudioLines } from "lucide-react";
+import { ArrowRight, Plus, Mic, AudioLines, Loader2 } from "lucide-react";
 // ClarificationModal flow disabled for HITL incremental questioning
 import { useAgentSessionContext } from '@/context/AgentSessionContext'
 // Workspace is now a separate route; home page only boots and navigates
@@ -49,17 +49,26 @@ const Index = () => {
   const navigate = useNavigate();
   const session = useAgentSessionContext()
   const [idea, setIdea] = useState("");
+  const [isBootstrapping, setIsBootstrapping] = useState(false)
   // HITL: skip pre-chat clarifications; questions will be asked incrementally via WS interrupts
   // Lens state is handled within the workspace via streaming; no local state needed here
 
   const start = async () => {
-    if (!idea.trim()) return;
-    // Bootstrap: ingest idea
-    const ingestRes = await session.bootstrapFromIngest(idea)
-    // Navigate directly to workspace; incremental HITL questions will be handled there
-    const { project_id, chat_id } = ingestRes
-    if (project_id && chat_id) {
-      navigate(`/workspace/${encodeURIComponent(project_id)}/${encodeURIComponent(chat_id)}`)
+    if (!idea.trim() || isBootstrapping) return;
+    setIsBootstrapping(true)
+    try {
+      // Bootstrap: ingest idea
+      const ingestRes = await session.bootstrapFromIngest(idea)
+      // Navigate directly to workspace; incremental HITL questions will be handled there
+      const { project_id, chat_id } = ingestRes
+      if (project_id && chat_id) {
+        navigate(`/workspace/${encodeURIComponent(project_id)}/${encodeURIComponent(chat_id)}`)
+      }
+    } catch (e) {
+      // Best-effort console log; UI simply re-enables input
+      try { console.error('Ingest failed', e) } catch {}
+    } finally {
+      setIsBootstrapping(false)
     }
   };
 
@@ -78,14 +87,14 @@ const Index = () => {
       </nav>
 
       {/* Hero */}
-      <section className="w-full max-w-3xl mx-auto text-center space-y-8 animate-enter min-h-[calc(100vh-3.5rem)] flex flex-col justify-center">
+      <section className="w-full max-w-3xl mx-auto text-center space-y-8 animate-enter min-h-[calc(100vh-3.5rem)] flex flex-col justify-center relative">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">AI PRD Generator — Turn Ideas into PRDs</h1>
         <p className="text-muted-foreground text-lg">Transform one‑liners into complete, consistent PRDs with AI clarification, generation, and iteration.</p>
 
         {/* Slim, modern chat box */}
         <div className="bg-card/60 border rounded-full px-4 py-2 ambient-spotlight">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={isBootstrapping}>
               <Plus className="h-4 w-4" />
             </Button>
             <Input
@@ -93,6 +102,7 @@ const Index = () => {
               placeholder="Ask anything"
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
+              disabled={isBootstrapping}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -100,17 +110,26 @@ const Index = () => {
                 }
               }}
             />
-            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={isBootstrapping}>
               <Mic className="h-4 w-4" />
             </Button>
-            <Button variant="secondary" size="icon" className="rounded-full h-10 w-10 pressable" aria-label="Generate PRD" onClick={start}>
-              <ArrowRight className="h-4 w-4" />
+            <Button variant="secondary" size="icon" className="rounded-full h-10 w-10 pressable" aria-label="Generate PRD" onClick={start} disabled={isBootstrapping}>
+              {isBootstrapping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
         {/* Recent section removed per design update */}
       </section>
+
+      {isBootstrapping && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Creating your workspace…</span>
+          </div>
+        </div>
+      )}
 
       {/* Clarification modal is intentionally disabled; HITL handles incremental Q/A in workspace */}
     </div>
