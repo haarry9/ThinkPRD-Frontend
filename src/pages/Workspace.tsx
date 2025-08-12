@@ -107,6 +107,8 @@ export default function WorkspacePage() {
   const isFlowStreaming = !!session.state.isFlowchartStreaming
   const wsConnected = session.state.wsConnected
   const lastUpdated = session.state.lastUpdated
+  const questionPlan = session.state.questionPlan || []
+  const pendingSection = session.state.lastPendingSection || ''
   // Thinking lens UI removed from sidebar; we still keep state internally in session
 
   const onSend = () => {
@@ -314,6 +316,14 @@ export default function WorkspacePage() {
 
           <div className="p-4 flex-1 min-h-0 overflow-auto">
             <TabsContent value="prd" className="mt-0">
+              {session.state.pendingQuestion && (
+                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
+                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-amber-500" />
+                  <span>
+                    Awaiting your answer for “{pendingSection || 'current section'}”. PRD won’t update until you answer.
+                  </span>
+                </div>
+              )}
               {!wsConnected && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
                   <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
@@ -372,6 +382,31 @@ export default function WorkspacePage() {
           <MessageSquare className="h-4 w-4" /> <span>PRD Agent</span>
         </div>
         <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-auto">
+          {/* Question plan panel */}
+          <div className="shrink-0">
+            <Card className="bg-card/60">
+              <CardHeader className="py-2">
+                <CardTitle className="text-sm">Question Plan</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                {questionPlan.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">No plan received yet.</div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                    {questionPlan.map((q) => {
+                      const isActive = pendingSection && q.section === pendingSection
+                      return (
+                        <div key={q.id} className={`rounded border px-2 py-1 text-xs ${isActive ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' : 'border-border/50'}`}>
+                          <div className="font-medium truncate">{q.section}</div>
+                          <div className="text-muted-foreground truncate">{q.question}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
           <div className="flex-1 min-h-0">
             <ChatPanel
               mode={mode}

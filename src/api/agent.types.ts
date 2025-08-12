@@ -110,6 +110,17 @@ export type FileIndexedEvent = {
   data: { project_id: string; file_id: string; filename: string; num_chunks: number }
 }
 
+// Initial plan: one question per section
+export type AgentQuestionPlanEvent = {
+  type: 'agent_question_plan'
+  data: { questions: Array<{ id: string; section: string; question: string }> }
+}
+
+export type AgentQuestionPlanDeltaEvent = {
+  type: 'agent_question_plan_delta'
+  data: { questions: Array<{ id: string; section: string; question: string }> }
+}
+
 export type AgentInterruptRequestEvent = {
   type: 'agent_interrupt_request'
   data: { question_id: string; question: string; lens?: string; rationale?: string }
@@ -130,6 +141,8 @@ export type AgentWsEvent =
   | AgentInterruptRequestEvent
   | AgentInterruptClearedEvent
   | FileIndexedEvent
+  | AgentQuestionPlanEvent
+  | AgentQuestionPlanDeltaEvent
 
 // Payloads for client → server (WS)
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }

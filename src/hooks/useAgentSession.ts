@@ -62,6 +62,7 @@ export type UseAgentSessionState = {
   // HITL
   pendingQuestion?: { question_id: string; question: string; lens?: string; rationale?: string }
   lastPendingSection?: string
+  questionPlan?: Array<{ id: string; section: string; question: string }>
   uiOverrides?: {
     thinkingLensStatus?: Partial<ThinkingLensStatus>
   }
@@ -258,6 +259,22 @@ export function useAgentSession(): UseAgentSessionApi {
           ],
         }))
       } catch {}
+    })
+    // Initial section question plan
+    client.on('agent_question_plan' as any, (e: any) => {
+      try { console.debug('[WS] agent_question_plan', (e as any)?.data) } catch {}
+      const qs = (e as any)?.data?.questions || []
+      setState((s) => ({ ...s, questionPlan: qs }))
+    })
+    client.on('agent_question_plan_delta' as any, (e: any) => {
+      try { console.debug('[WS] agent_question_plan_delta', (e as any)?.data) } catch {}
+      const qs = (e as any)?.data?.questions || []
+      if (!qs.length) return
+      setState((s) => {
+        const curr = s.questionPlan || []
+        // naive append; could de-duplicate by id if needed
+        return { ...s, questionPlan: [...curr, ...qs] }
+      })
     })
     client.on('error', (e) => {
       const kind = (e as any)?.data?.kind

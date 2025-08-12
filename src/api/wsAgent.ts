@@ -14,6 +14,8 @@ import type {
   MessageSentEvent,
   FileIndexedEvent,
   FlowchartTurnPayload,
+  AgentQuestionPlanEvent,
+  AgentQuestionPlanDeltaEvent,
 } from '@/api/agent.types'
 
 type ListenerMap = {
@@ -26,6 +28,8 @@ type ListenerMap = {
   agent_interrupt_cleared: Set<(e: AgentInterruptClearedEvent) => void>
   message_sent: Set<(e: MessageSentEvent) => void>
   file_indexed: Set<(e: FileIndexedEvent) => void>
+  agent_question_plan: Set<(e: AgentQuestionPlanEvent) => void>
+  agent_question_plan_delta: Set<(e: AgentQuestionPlanDeltaEvent) => void>
 }
 
 function createListeners(): ListenerMap {
@@ -39,6 +43,8 @@ function createListeners(): ListenerMap {
     agent_interrupt_cleared: new Set(),
     message_sent: new Set(),
     file_indexed: new Set(),
+    agent_question_plan: new Set(),
+    agent_question_plan_delta: new Set(),
   }
 }
 
@@ -344,6 +350,16 @@ export class WsAgentClient {
       case 'file_indexed': {
         try { console.debug('[WS EVT] file_indexed') } catch {}
         this.emit('file_indexed', parsed as unknown as FileIndexedEvent)
+        break
+      }
+      case 'agent_question_plan': {
+        try { console.debug('[WS EVT] agent_question_plan') } catch {}
+        this.emit('agent_question_plan', parsed as unknown as AgentQuestionPlanEvent)
+        break
+      }
+      case 'agent_question_plan_delta': {
+        try { console.debug('[WS EVT] agent_question_plan_delta') } catch {}
+        this.emit('agent_question_plan_delta', parsed as unknown as AgentQuestionPlanDeltaEvent)
         break
       }
       case 'agent_interrupt_request': {
