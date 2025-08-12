@@ -291,7 +291,11 @@ export default function WorkspacePage() {
               {session.state.isStreaming && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
                   <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
-                  <span>Building your workspace… streaming PRD. Editing is temporarily disabled.</span>
+                  <span>
+                    {session.state.lastPendingSection
+                      ? `Incorporating your answer into “${session.state.lastPendingSection}”…`
+                      : 'Building your workspace… streaming PRD. Editing is temporarily disabled.'}
+                  </span>
                 </div>
               )}
               <PRDEditor value={prdValue} onChange={onPrdChange} disabled={session.state.isStreaming} />

@@ -61,6 +61,7 @@ export type UseAgentSessionState = {
   flowProgress?: string
   // HITL
   pendingQuestion?: { question_id: string; question: string; lens?: string; rationale?: string }
+  lastPendingSection?: string
   uiOverrides?: {
     thinkingLensStatus?: Partial<ThinkingLensStatus>
   }
@@ -127,6 +128,7 @@ export function useAgentSession(): UseAgentSessionApi {
     pendingAttachmentFileId: undefined,
     attachmentStatus: 'idle',
     isFlowchartStreaming: false,
+    lastPendingSection: undefined,
   }))
 
   const wsRef = useRef<WsAgentClient | null>(null)
@@ -197,11 +199,12 @@ export function useAgentSession(): UseAgentSessionApi {
           ...s,
           messages: [...s.messages, { id: uuid(), role: 'assistant', content, timestamp: nowIso() }],
           isStreaming: false,
+          lastPendingSection: undefined,
           lastUpdated: nowIso(),
           streamingAssistantContent: '',
         }))
       } else {
-        setState((s) => ({ ...s, isStreaming: false, lastUpdated: nowIso(), streamingAssistantContent: '' }))
+        setState((s) => ({ ...s, isStreaming: false, lastUpdated: nowIso(), streamingAssistantContent: '', lastPendingSection: undefined }))
       }
       aiStreamBufferRef.current = ''
     })
@@ -213,6 +216,7 @@ export function useAgentSession(): UseAgentSessionApi {
       setState((s) => ({
         ...s,
         pendingQuestion: data,
+        lastPendingSection: (data as any)?.section || s.lastPendingSection,
         isStreaming: false,
         streamingAssistantContent: '',
         // Do NOT push the agent question here; it will be acknowledged by the agent itself
@@ -248,7 +252,7 @@ export function useAgentSession(): UseAgentSessionApi {
         aiStreamBufferRef.current = ''
         return
       }
-      setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isStreaming: false, streamingAssistantContent: '' }))
+      setState((s) => ({ ...s, error: e.data.message || 'WebSocket error', isStreaming: false, streamingAssistantContent: '', lastPendingSection: undefined }))
       aiStreamBufferRef.current = ''
     })
     // File indexed notification to flip UI state from 'indexing' → 'ready' proactively
@@ -366,7 +370,8 @@ export function useAgentSession(): UseAgentSessionApi {
       }))
     }
     // Immediately show thinking/typing indicator for agent ack/incorporation
-    setState((s) => ({ ...s, isStreaming: true, streamingAssistantContent: '' }))
+    // and optimistically clear the pending prompt
+    setState((s) => ({ ...s, isStreaming: true, streamingAssistantContent: '', pendingQuestion: undefined }))
     await wsRef.current.sendAgentResume(payload)
   }, [state.pendingQuestion])
 
