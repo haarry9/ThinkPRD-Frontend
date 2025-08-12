@@ -7,6 +7,8 @@ import type {
   ClarificationsResponse,
   SaveArtifactsRequest,
   SaveArtifactsResponse,
+  GenerateSchemaRequest,
+  GenerateSchemaResponse,
 } from '@/api/agent.types'
 
 export async function ingestIdea(payload: IngestIdeaRequest | FormData): Promise<IngestIdeaResponse> {
@@ -41,5 +43,15 @@ export async function saveArtifacts(projectId: string, body: SaveArtifactsReques
     body: JSON.stringify(body),
   })
   return extractData<SaveArtifactsResponse>(res)
+}
+
+export async function generateSchema(projectId: string, body: GenerateSchemaRequest): Promise<GenerateSchemaResponse> {
+  const url = apiUrl(`agent/projects/${encodeURIComponent(projectId)}/generate-schema`)
+  const res = await request<any>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return extractData<GenerateSchemaResponse>(res as any)
 }
 

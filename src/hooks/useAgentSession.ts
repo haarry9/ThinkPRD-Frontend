@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ingestIdea, fetchClarifications, saveArtifacts } from '@/api/agent'
+import { ingestIdea, fetchClarifications, saveArtifacts, generateSchema as apiGenerateSchema } from '@/api/agent'
 import type {
   IngestIdeaResponse,
   ClarificationsResponse,
@@ -70,6 +70,12 @@ export type UseAgentSessionState = {
   // Chat-mode attachment state (single file for next message only)
   pendingAttachmentFileId?: string
   attachmentStatus?: 'idle' | 'uploading' | 'indexing' | 'ready' | 'error'
+  // Schema
+  schemaMarkdown?: string
+  schemaProvider?: string
+  schemaModel?: string
+  isSchemaLoading?: boolean
+  schemaEverGenerated?: boolean
 }
 
 export type UseAgentSessionApi = {
@@ -100,6 +106,8 @@ export type UseAgentSessionApi = {
   setLensOverride: (key: keyof ThinkingLensStatus, next: boolean) => void
   // Chat attachments
   uploadChatAttachment: (file: File) => Promise<void>
+  // Schema
+  generateSchema: () => Promise<void>
 }
 
 function nowIso(): string {
@@ -129,6 +137,12 @@ export function useAgentSession(): UseAgentSessionApi {
     attachmentStatus: 'idle',
     isFlowchartStreaming: false,
     lastPendingSection: undefined,
+    // Schema defaults
+    schemaMarkdown: undefined,
+    schemaProvider: undefined,
+    schemaModel: undefined,
+    isSchemaLoading: false,
+    schemaEverGenerated: false,
   }))
 
   const wsRef = useRef<WsAgentClient | null>(null)
@@ -610,6 +624,35 @@ export function useAgentSession(): UseAgentSessionApi {
     }
   }, [state])
 
+  const generateSchema = useCallback(async () => {
+    const { projectId, prdMarkdown } = state
+    if (!projectId) throw new Error('projectId is not set')
+    const prd = (prdMarkdown || '').trim()
+    if (!prd) throw new Error('Please generate or edit your PRD before generating a schema.')
+    setState((s) => ({ ...s, isSchemaLoading: true }))
+    try {
+      const res = await apiGenerateSchema(projectId, {
+        prd_markdown: prd,
+        preferred_provider: 'openai',
+        model: 'gpt-4o-mini',
+        temperature: 0.5,
+      })
+      setState((s) => ({
+        ...s,
+        schemaMarkdown: res.schema_markdown || '',
+        schemaProvider: res.provider || undefined,
+        schemaModel: res.model || undefined,
+        isSchemaLoading: false,
+        schemaEverGenerated: true,
+        lastUpdated: nowIso(),
+      }))
+      try { toast({ title: 'Schema updated' }) } catch {}
+    } catch (e: any) {
+      setState((s) => ({ ...s, isSchemaLoading: false }))
+      throw e
+    }
+  }, [state])
+
   // Cleanup event listeners and WS on unmount
   useEffect(() => {
     return () => {
@@ -645,6 +688,7 @@ export function useAgentSession(): UseAgentSessionApi {
     setLensOverride,
     // Chat-mode attachment
     uploadChatAttachment,
+    generateSchema,
   }
 }
 

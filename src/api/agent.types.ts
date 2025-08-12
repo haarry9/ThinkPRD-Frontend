@@ -172,3 +172,18 @@ export type FlowchartTurnPayload = {
   client_run_id?: string
 }
 
+
+// -------- Schema generation (HTTP) --------
+export type GenerateSchemaRequest = {
+  prd_markdown: string
+  preferred_provider?: 'openai' | 'gemini' | 'groq'
+  model?: string
+  temperature?: number
+}
+
+export type GenerateSchemaResponse = {
+  schema_markdown: string
+  provider: string
+  model?: string
+  response_time_ms?: number
+}

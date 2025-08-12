@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,6 +8,7 @@ import { FileText, GitBranch, Link2, History, Save, MessageSquare, ChevronLeft, 
 import { toast } from '@/components/ui/use-toast'
 import PRDEditor from '@/components/PRDEditor'
 import FlowchartView from '@/components/FlowchartView'
+import SchemaView from './SchemaView'
 import ModeSegmented from '@/components/sidebar/ModeSegmented'
 import ChatPanel from '@/components/chat/ChatPanel'
 import { useAgentSessionContext } from '@/context/AgentSessionContext'
@@ -17,9 +18,11 @@ import { ENABLE_FLOWCHART_BUTTON } from '@/api/config'
 
 export default function WorkspacePage() {
   const { projectId, chatId } = useParams()
+  const navigate = useNavigate()
   const session = useAgentSessionContext()
   const [collapsed, setCollapsed] = useState(false)
   const [mode, setMode] = useState<'chat' | 'agent'>('agent')
+  const [activeTab, setActiveTab] = useState<'prd' | 'flow' | 'schema'>('prd')
   const [chatInput, setChatInput] = useState('')
   const initialRunSentRef = useRef(false)
   const wsReadyRef = useRef(false)
@@ -36,7 +39,7 @@ export default function WorkspacePage() {
         wsReadyRef.current = true
       }).catch(() => {})
       return () => {
-        session.disconnect().catch(() => {})
+        // Keep WS connection alive across route changes (e.g., SchemaView)
         wsReadyRef.current = false
       }
     }
@@ -215,12 +218,20 @@ export default function WorkspacePage() {
 
       {/* Main content */}
       <main className="flex-1 min-h-0 flex flex-col">
-        <Tabs defaultValue="prd" className="flex-1 min-h-0 flex flex-col">
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 min-h-0 flex flex-col">
           <div className="h-12 border-b flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-3">
               <TabsList className="h-8">
                 <TabsTrigger value="prd">PRD</TabsTrigger>
                 <TabsTrigger value="flow">Flowchart</TabsTrigger>
+                <TabsTrigger value="schema" onClick={() => {
+                  const prd = (session.state.prdMarkdown || '').trim()
+                  if (!prd) {
+                    toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
+                    return
+                  }
+                  // Stay embedded; offer a link in the embedded view to open full page
+                }}>Schema</TabsTrigger>
               </TabsList>
             </div>
             <div className="flex items-center gap-2">
@@ -239,9 +250,7 @@ export default function WorkspacePage() {
                 onClick={async () => {
                   try {
                     await session.generateFlowchart()
-                    // Auto-switch to Flow tab by simulating a click: Tabs is controlled by defaultValue only; rely on DOM
-                    const trigger = document.querySelector('[data-state][value="flow"]') as HTMLElement | null
-                    trigger?.click()
+                    setActiveTab('flow')
                   } catch (e: any) {
                     toast({ title: 'Flowchart', description: e?.message || 'Failed to start flowchart run' })
                   }
@@ -251,6 +260,29 @@ export default function WorkspacePage() {
                 {session.state.mermaid ? 'Update Flowchart' : 'Generate Flowchart'}
               </Button>
               )}
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!session.state.projectId || session.isBusy()}
+                onClick={async () => {
+                  const prd = (session.state.prdMarkdown || '').trim()
+                  if (!prd) {
+                    toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
+                    return
+                  }
+                  // Auto-generate schema, then show embedded schema view
+                  try {
+                    await session.generateSchema()
+                  } catch (e: any) {
+                    toast({ title: 'Schema', description: e?.message || 'Failed to generate schema' })
+                    return
+                  }
+                  setActiveTab('schema')
+                }}
+                title={session.isBusy() ? 'Disabled while another generation is in progress' : ''}
+              >
+                {session.state.schemaEverGenerated ? 'Update Schema' : 'Generate Schema'}
+              </Button>
               <Button
                 size="sm"
                 disabled={session.state.isStreaming || !session.state.unsavedChanges}
@@ -312,6 +344,23 @@ export default function WorkspacePage() {
                 setMermaidOk(ok)
                 session.markMermaidRendered(ok)
               }} />
+            </TabsContent>
+            <TabsContent value="schema" className="mt-0">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground">Embedded schema preview</div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    if (session.state.projectId && session.state.chatId) {
+                      navigate(`/workspace/${encodeURIComponent(session.state.projectId)}/${encodeURIComponent(session.state.chatId)}/schema`)
+                    }
+                  }}
+                >
+                  Open full page
+                </Button>
+              </div>
+              <SchemaView embedded />
             </TabsContent>
           </div>
         </Tabs>

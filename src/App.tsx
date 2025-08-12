@@ -12,6 +12,7 @@ import RequireAuth from '@/routes/RequireAuth'
 import Profile from '@/pages/Profile'
 import WorkspacePage from '@/pages/Workspace'
 import { AgentSessionProvider } from '@/context/AgentSessionContext'
+import SchemaView from '@/pages/SchemaView'
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,14 @@ const App = () => {
                 element={
                   <RequireAuth>
                     <WorkspacePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/workspace/:projectId/:chatId/schema"
+                element={
+                  <RequireAuth>
+                    <SchemaView />
                   </RequireAuth>
                 }
               />
