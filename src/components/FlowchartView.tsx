@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import mermaid from "mermaid";
+import { mermaid, initializeMermaid, sanitizeMermaid } from "@/utils/mermaid";
 
 interface Props {
   code: string;
@@ -10,7 +10,7 @@ export default function FlowchartView({ code, onRenderResult }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+    initializeMermaid('dark')
   }, []);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function FlowchartView({ code, onRenderResult }: Props) {
     (async () => {
       try {
         const id = `mmd-${Math.random().toString(36).slice(2)}`;
-        const sanitized = sanitize(code);
+        const sanitized = sanitizeMermaid(code);
         if (!sanitized) {
           if (containerRef.current) {
             containerRef.current.innerHTML = `<pre class="text-muted-foreground">No flowchart generated yet.</pre>`;
@@ -48,17 +48,4 @@ export default function FlowchartView({ code, onRenderResult }: Props) {
   );
 }
 
-function sanitize(input?: string): string {
-  const raw = (input || "").trim();
-  if (!raw) return "";
-  // Strip code fences if present
-  let s = raw;
-  if (s.startsWith("```")) {
-    s = s.replace(/^```(mermaid)?/i, "").replace(/```$/i, "").trim();
-  }
-  // If it starts with the word "mermaid" after stripping, drop that label
-  if (/^mermaid\s*/i.test(s)) {
-    s = s.replace(/^mermaid\s*/i, "");
-  }
-  return s.trim();
-}
+// sanitize moved to utils/mermaid
