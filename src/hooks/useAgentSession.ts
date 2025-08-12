@@ -10,7 +10,7 @@ import type {
   VersionItem,
 } from '@/api/agent.types'
 import { listVersions as apiListVersions, rollback as apiRollback } from '@/api/projects'
-import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
+import { uploadProjectFiles, listProjectFiles, getChatMessages, getCurrentArtifacts } from '@/api/projects'
 import { WsAgentClient } from '@/api/wsAgent'
 import { toast } from '@/components/ui/use-toast'
 import type { AgentResumePayload, AgentInterruptRequestEvent, FlowchartTurnPayload } from '@/api/agent.types'
@@ -109,6 +109,8 @@ export type UseAgentSessionApi = {
   uploadChatAttachment: (file: File) => Promise<void>
   // Schema
   generateSchema: () => Promise<void>
+  // Data restoration
+  loadHistoricalData: () => Promise<void>
 }
 
 function nowIso(): string {
@@ -300,14 +302,63 @@ export function useAgentSession(): UseAgentSessionApi {
     return client
   }, [state.chatId])
 
+  const loadHistoricalData = useCallback(async () => {
+    const { projectId, chatId } = state
+    if (!projectId || !chatId) return
+    
+    try {
+      // Load chat messages and current artifacts in parallel
+      const [messagesResult, artifactsResult] = await Promise.all([
+        getChatMessages(chatId).catch(() => ({ messages: [], has_more: false })),
+        getCurrentArtifacts(projectId).catch(() => ({ 
+          prd_markdown: null, 
+          mermaid: null, 
+          project_name: '', 
+          initial_idea: '',
+          current_version: 'v1.0'
+        }))
+      ])
+      
+      // Convert backend message format to session format
+      const sessionMessages = messagesResult.messages.map((msg: any) => ({
+        id: msg.id || uuid(),
+        role: msg.message_type === 'assistant' ? 'assistant' : 'user',
+        content: msg.content || '',
+        timestamp: msg.timestamp || nowIso()
+      })).reverse() // Reverse to get chronological order
+      
+      // Update state with loaded data
+      setState((s) => ({
+        ...s,
+        messages: sessionMessages,
+        prdMarkdown: artifactsResult.prd_markdown || '',
+        mermaid: artifactsResult.mermaid || '',
+        lastGoodMermaid: artifactsResult.mermaid || '',
+        initialIdea: artifactsResult.initial_idea || s.initialIdea,
+        currentVersion: artifactsResult.current_version || s.currentVersion,
+        // Reset unsaved changes since we just loaded from storage
+        unsavedChanges: false,
+        lastUpdated: nowIso()
+      }))
+      
+    } catch (error) {
+      // Don't fail the connection if historical data loading fails
+      console.warn('Failed to load historical data:', error)
+    }
+  }, [state.projectId, state.chatId])
+
   const connect = useCallback(async () => {
     const client = ensureWsClient()
     await client.connect()
+    
+    // Load historical data after successful connection
+    await loadHistoricalData()
+    
     // Best-effort mark connected shortly after
     setTimeout(() => {
       setState((s) => ({ ...s, wsConnected: client.isConnected() }))
     }, 50)
-  }, [ensureWsClient])
+  }, [ensureWsClient, loadHistoricalData])
 
   const disconnect = useCallback(async () => {
     if (wsRef.current) {
@@ -706,6 +757,8 @@ export function useAgentSession(): UseAgentSessionApi {
     // Chat-mode attachment
     uploadChatAttachment,
     generateSchema,
+    // Data restoration
+    loadHistoricalData,
   }
 }
 

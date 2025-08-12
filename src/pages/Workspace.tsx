@@ -82,11 +82,18 @@ export default function WorkspacePage() {
     }
   }
 
-  // Auto-send initial agent run once
+  // Auto-send initial agent run once (only if PRD is empty - not for restored projects)
   useEffect(() => {
     if (initialRunSentRef.current) return
     if (!session.state.projectId || !session.state.chatId) return
     if (!session.state.wsConnected && !wsReadyRef.current) return
+    
+    // Skip initial generation if PRD already has content (restored from previous session)
+    if (session.state.prdMarkdown && session.state.prdMarkdown.trim()) {
+      initialRunSentRef.current = true // Mark as sent to prevent future runs
+      return
+    }
+    
     initialRunSentRef.current = true
     const content = session.state.initialIdea
       ? `Generate a PRD outline only using the shared template. No commentary.`
@@ -94,7 +101,7 @@ export default function WorkspacePage() {
     session.sendAgentMessage(content, { silent: true }).catch(() => {
       initialRunSentRef.current = false
     })
-  }, [session.state.projectId, session.state.chatId, session.state.wsConnected])
+  }, [session.state.projectId, session.state.chatId, session.state.wsConnected, session.state.prdMarkdown])
 
   const versions = useMemo(() => session.state.versions.map(v => ({
     version: v.version,
@@ -327,7 +334,7 @@ export default function WorkspacePage() {
               {!wsConnected && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
                   <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
-                  <span>Spinning up your workspace… connecting.</span>
+                  <span>Loading your workspace… restoring previous session.</span>
                 </div>
               )}
               {session.state.isStreaming && (
