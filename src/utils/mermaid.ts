@@ -29,13 +29,14 @@ export function initializeMermaid(theme: 'default' | 'dark' = 'default'): void {
         fontSize: '12px',
       },
       themeCSS: `
-        .label, .edgeLabel, .nodeLabel { fill: #E0E0E0; }
-        .edgePath .path { stroke: #93B8F8; }
-        .marker { fill: #93B8F8; }
-        .node rect, .node circle, .node ellipse, .node polygon { fill: #232323; stroke: #424242; }
-        .cluster rect { fill: #181818; stroke: #424242; }
-        .flowchart-link { stroke: #93B8F8; }
-        .edgeLabel rect { fill: transparent; }
+        /* Force app theme colors in UI (override any inline Mermaid styles) */
+        .label, .edgeLabel, .nodeLabel, text { fill: #E0E0E0 !important; color: #E0E0E0 !important; }
+        .edgePath .path { stroke: #93B8F8 !important; stroke-width: 2px; }
+        .marker { fill: #93B8F8 !important; }
+        .node rect, .node circle, .node ellipse, .node polygon { fill: #232323 !important; stroke: #424242 !important; }
+        .cluster rect { fill: #181818 !important; stroke: #424242 !important; }
+        .flowchart-link { stroke: #93B8F8 !important; }
+        .edgeLabel rect { fill: transparent !important; stroke: transparent !important; }
       `,
     }
 

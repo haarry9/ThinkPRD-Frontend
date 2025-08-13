@@ -116,14 +116,14 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
       </section>
 
       {Boolean((mermaidCode || '').trim()) && (
-        <section id="export-flowchart" style={{ pageBreakBefore: 'always' as any }}>
+        <section id="export-flowchart" style={{ pageBreakBefore: 'always' as any, background: '#ffffff' }}>
           <h2>Flowchart</h2>
           <div ref={flowRef} />
         </section>
       )}
 
       {Boolean((schemaMarkdown || '').trim()) && (
-        <section id="export-schema" style={{ pageBreakBefore: 'always' as any }}>
+        <section id="export-schema" style={{ pageBreakBefore: 'always' as any, background: '#ffffff' }}>
           <h2>Schema</h2>
           <div className="prose max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{schemaMarkdown || ''}</ReactMarkdown>

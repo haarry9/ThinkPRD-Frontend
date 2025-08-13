@@ -365,6 +365,14 @@ export default function WorkspacePage() {
                               const margin = 36 // 0.5 inch
                               const maxWidth = pageWidth - margin * 2
 
+                            function fillWhiteBackground() {
+                              try {
+                                doc.setFillColor(255, 255, 255)
+                                // Cover full page to avoid viewer-default dark backgrounds
+                                doc.rect(0, 0, pageWidth, pageHeight, 'F')
+                              } catch {}
+                            }
+
                               async function renderSectionPaginated(id: string, isFirst: boolean) {
                                 const el = root.querySelector(`#${id}`) as HTMLElement | null
                                 if (!el) return
@@ -386,7 +394,11 @@ export default function WorkspacePage() {
                                   ctx.drawImage(canvas, 0, offsetPx, imgWpx, sliceHeightPx, 0, 0, imgWpx, sliceHeightPx)
                                   const imgData = tmpCanvas.toDataURL('image/jpeg', 0.82)
                                   const sliceHeightPt = sliceHeightPx / pxPerPt
-                                  if (!isFirst || renderedPages > 0) doc.addPage()
+                                if (!isFirst || renderedPages > 0) {
+                                  doc.addPage()
+                                }
+                                // Always ensure the current page has a white background before drawing
+                                fillWhiteBackground()
                                   doc.addImage(imgData, 'JPEG', margin, margin, maxWidth, sliceHeightPt)
                                   renderedPages += 1
                                 }
@@ -403,6 +415,7 @@ export default function WorkspacePage() {
                                   const svgH = vb && vb.height ? vb.height : (svg.clientHeight || 600)
                                   const scale = Math.min(maxWidth / svgW, (pageHeight - margin * 2) / svgH)
                                   doc.addPage()
+                                  fillWhiteBackground()
                                   svg2pdf(svg, doc as any, {
                                     x: margin,
                                     y: margin,
