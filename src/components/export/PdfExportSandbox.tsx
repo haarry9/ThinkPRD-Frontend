@@ -31,11 +31,68 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
           // Parse first to avoid overlay errors
           await mermaid.parse(sanitized)
           const { svg } = await mermaid.render(`mmd-export-${Math.random().toString(36).slice(2)}`, sanitized)
-          if (!cancelled) flowRef.current.innerHTML = svg
+          if (!cancelled) {
+            flowRef.current.innerHTML = svg
+            
+            // Ensure text elements are visible in PDF export by applying high contrast styles
+            const svgElement = flowRef.current.querySelector('svg')
+            if (svgElement) {
+              // Inline critical computed styles so svg2pdf doesn't miss CSS variables
+              const inlineSvgStyles = (root: Element) => {
+                const importantProps = [
+                  'fill', 'stroke', 'stroke-width', 'font-size', 'font-family', 'font-weight', 'opacity', 'color', 'text-anchor',
+                ]
+                const all = root.querySelectorAll('*')
+                all.forEach((el) => {
+                  const cs = window.getComputedStyle(el as Element)
+                  importantProps.forEach((prop) => {
+                    const val = cs.getPropertyValue(prop)
+                    if (val) (el as HTMLElement).style.setProperty(prop, val)
+                  })
+                })
+              }
+
+              inlineSvgStyles(svgElement)
+              // Force dark text colors for all text elements (target text and tspans explicitly)
+              const textElements = svgElement.querySelectorAll('text, tspan, .nodeLabel, .edgeLabel, .label')
+              textElements.forEach((el: any) => {
+                el.style.fill = '#111111'
+                el.style.color = '#111111'
+                el.style.stroke = 'none'
+              })
+              
+              // Ensure stroke colors are visible
+              const pathElements = svgElement.querySelectorAll('.edgePath .path, .flowchart-link')
+              pathElements.forEach((el: any) => {
+                el.style.stroke = '#1f2937'
+              })
+              
+              // Ensure node backgrounds are light with dark borders
+              const nodeElements = svgElement.querySelectorAll('.node rect, .node circle, .node ellipse, .node polygon')
+              nodeElements.forEach((el: any) => {
+                el.style.fill = '#f5f5f5'
+                el.style.stroke = '#1f2937'
+                el.style.strokeWidth = '1px'
+              })
+
+              // Edge label backgrounds to white to guarantee contrast in PDF
+              const edgeLabelRects = svgElement.querySelectorAll('.edgeLabel rect')
+              edgeLabelRects.forEach((el: any) => {
+                el.style.fill = '#ffffff'
+                el.style.stroke = '#e5e7eb'
+              })
+            }
+            
+            // Add a small delay to ensure DOM is fully updated before PDF generation
+            await new Promise(resolve => setTimeout(resolve, 120))
+          }
         }
-      } catch {
-        // If rendering fails, leave flowchart empty; export will skip empty node
-        if (flowRef.current) flowRef.current.innerHTML = ''
+      } catch (error) {
+        console.error('Mermaid rendering error for PDF export:', error)
+        // If rendering fails, keep a visible message so the user knows where it failed
+        if (flowRef.current) {
+          flowRef.current.innerHTML = '<pre style="color:#b91c1c;">Mermaid render error. Check syntax.</pre>'
+        }
       } finally {
         if (!cancelled) onReady(root)
       }

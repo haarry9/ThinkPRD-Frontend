@@ -7,6 +7,10 @@ export function initializeMermaid(theme: 'default' | 'dark' = 'default'): void {
       startOnLoad: false,
       theme: 'dark' as const,
       securityLevel: 'loose' as const,
+      // Avoid foreignObject labels so PDF export preserves text
+      flowchart: {
+        htmlLabels: false,
+      } as any,
       themeVariables: {
         // Brand-aligned dark palette
         background: 'transparent',
@@ -39,6 +43,10 @@ export function initializeMermaid(theme: 'default' | 'dark' = 'default'): void {
       startOnLoad: false,
       theme: 'default' as const,
       securityLevel: 'loose' as const,
+      // Avoid foreignObject labels so PDF export preserves text
+      flowchart: {
+        htmlLabels: false,
+      } as any,
       themeVariables: {
         background: '#ffffff',
         primaryColor: '#f5f5f5',
@@ -51,17 +59,50 @@ export function initializeMermaid(theme: 'default' | 'dark' = 'default'): void {
         nodeBorder: '#1f2937',
         clusterBkg: '#ffffff',
         clusterBorder: '#e5e7eb',
-        edgeLabelBackground: '#00000000',
+        edgeLabelBackground: '#ffffff',
         fontFamily: 'Inter, ui-sans-serif, system-ui',
-        fontSize: '12px',
+        fontSize: '14px',
+        // Additional variables for better PDF export
+        mainBkg: '#ffffff',
+        nodeBkg: '#f5f5f5',
+        nodeTextColor: '#111111',
+        edgeLabelColor: '#111111',
       },
       themeCSS: `
-        .label, .edgeLabel, .nodeLabel { fill: #111111; }
-        .edgePath .path { stroke: #1f2937; }
-        .marker { fill: #1f2937; }
-        .node rect, .node circle, .node ellipse, .node polygon { fill: #f5f5f5; stroke: #1f2937; }
-        .cluster rect { fill: #ffffff; stroke: #e5e7eb; }
-        .edgeLabel rect { fill: transparent; }
+        .label, .edgeLabel, .nodeLabel { 
+          fill: #111111 !important; 
+          color: #111111 !important;
+          font-weight: 500;
+        }
+        .edgePath .path { 
+          stroke: #1f2937 !important; 
+          stroke-width: 2px;
+        }
+        .marker { 
+          fill: #1f2937 !important; 
+        }
+        .node rect, .node circle, .node ellipse, .node polygon { 
+          fill: #f5f5f5 !important; 
+          stroke: #1f2937 !important; 
+          stroke-width: 2px;
+        }
+        .cluster rect { 
+          fill: #ffffff !important; 
+          stroke: #e5e7eb !important; 
+        }
+        .edgeLabel rect { 
+          fill: #ffffff !important; 
+          stroke: #e5e7eb;
+          stroke-width: 1px;
+        }
+        .flowchart-link {
+          stroke: #1f2937 !important;
+          stroke-width: 2px;
+        }
+        text {
+          fill: #111111 !important;
+          color: #111111 !important;
+        }
       `,
     }
 
@@ -84,24 +125,8 @@ export function sanitizeMermaid(input?: string): string {
   if (/^mermaid\s*/i.test(s)) {
     s = s.replace(/^mermaid\s*/i, '')
   }
-  // Strip hard-coded colors from style/classDef/linkStyle to enforce app theme
-  const lines = s.split(/\n/)
-  const cleaned = lines.map((line) => {
-    const trimmed = line.trimStart()
-    if (/^(classDef|style|linkStyle)\b/.test(trimmed)) {
-      // Remove color assignments like fill:#fff, stroke:#abc, color:#123, background-color:..., stop-color:...
-      return trimmed
-        .replace(/fill:\s*#?[0-9a-fA-F]{3,8}\b/gi, '')
-        .replace(/stroke:\s*#?[0-9a-fA-F]{3,8}\b/gi, '')
-        .replace(/color:\s*#?[0-9a-fA-F]{3,8}\b/gi, '')
-        .replace(/background-color:\s*#?[0-9a-fA-F]{3,8}\b/gi, '')
-        .replace(/stop-color:\s*#?[0-9a-fA-F]{3,8}\b/gi, '')
-        .replace(/;{2,}/g, ';')
-        .replace(/[ ,;]+$/g, '')
-    }
-    return line
-  })
-  return cleaned.join('\n').trim()
+  // Keep author-provided styles intact; we'll override visually via theme/CSS at render/export time to avoid parse breakage
+  return s
 }
 
 export { mermaid }

@@ -237,192 +237,203 @@ export default function WorkspacePage() {
       {/* Main content */}
       <main className="flex-1 min-h-0 flex flex-col">
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 min-h-0 flex flex-col">
-          <div className="h-12 border-b flex items-center justify-between px-4 shrink-0">
-            <div className="flex items-center gap-3">
-              <TabsList className="h-8">
-                <TabsTrigger value="prd">PRD</TabsTrigger>
-                <TabsTrigger value="flow">Flowchart</TabsTrigger>
-                <TabsTrigger value="schema" onClick={() => {
-                  const prd = (session.state.prdMarkdown || '').trim()
-                  if (!prd) {
-                    toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
-                    return
-                  }
-                  // Stay embedded; offer a link in the embedded view to open full page
-                }}>Schema</TabsTrigger>
-              </TabsList>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => session.fetchVersions().catch(() => {})}
-              >
-                <History className="h-4 w-4 mr-1"/>History
-              </Button>
-              {ENABLE_FLOWCHART_BUTTON && (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!session.state.projectId || isStreaming || isFlowStreaming}
-                onClick={async () => {
-                  try {
-                    await session.generateFlowchart()
-                    setActiveTab('flow')
-                  } catch (e: any) {
-                    toast({ title: 'Flowchart', description: e?.message || 'Failed to start flowchart run' })
-                  }
-                }}
-                title={isFlowStreaming ? 'Flowchart run in progress' : ''}
-              >
-                {session.state.mermaid ? 'Update Flowchart' : 'Generate Flowchart'}
-              </Button>
-              )}
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={exporting || session.state.isStreaming || session.isBusy()}
-                onClick={async () => {
-                  const prd = (session.state.prdMarkdown || '').trim()
-                  const mmd = (session.state.mermaid || session.state.lastGoodMermaid || '').trim()
-                  const schema = (session.state.schemaMarkdown || '').trim()
-                  if (!prd) {
-                    toast({ title: 'Export', description: 'No PRD content to export.' })
-                    return
-                  }
-                  setExporting(true)
-                  // Mount offscreen sandbox and wait for onReady to render
-                  await new Promise<void>((resolve) => {
-                    setExportPortal(
-                      <PdfExportSandbox
-                        prdMarkdown={prd}
-                        mermaidCode={mmd}
-                        schemaMarkdown={schema}
-                        onReady={async (root) => {
-                          try {
-                            const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
-                            const pageWidth = doc.internal.pageSize.getWidth()
-                            const pageHeight = doc.internal.pageSize.getHeight()
-                            const margin = 36 // 0.5 inch
-                            const maxWidth = pageWidth - margin * 2
-
-                            async function renderSectionPaginated(id: string, isFirst: boolean) {
-                              const el = root.querySelector(`#${id}`) as HTMLElement | null
-                              if (!el) return
-                              const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true })
-                              const imgWpx = canvas.width
-                              const imgHpx = canvas.height
-                              const pxPerPt = imgWpx / maxWidth // scale image to fit width
-                              const pageInnerHeightPt = pageHeight - margin * 2
-                              const pageInnerHeightPx = Math.floor(pageInnerHeightPt * pxPerPt)
-
-                              const tmpCanvas = document.createElement('canvas')
-                              const ctx = tmpCanvas.getContext('2d')!
-                              let renderedPages = 0
-                              for (let offsetPx = 0; offsetPx < imgHpx; offsetPx += pageInnerHeightPx) {
-                                const sliceHeightPx = Math.min(pageInnerHeightPx, imgHpx - offsetPx)
-                                tmpCanvas.width = imgWpx
-                                tmpCanvas.height = sliceHeightPx
-                                ctx.clearRect(0, 0, tmpCanvas.width, tmpCanvas.height)
-                                ctx.drawImage(canvas, 0, offsetPx, imgWpx, sliceHeightPx, 0, 0, imgWpx, sliceHeightPx)
-                                const imgData = tmpCanvas.toDataURL('image/jpeg', 0.82)
-                                const sliceHeightPt = sliceHeightPx / pxPerPt
-                                if (!isFirst || renderedPages > 0) doc.addPage()
-                                doc.addImage(imgData, 'JPEG', margin, margin, maxWidth, sliceHeightPt)
-                                renderedPages += 1
-                              }
-                            }
-
-                            await renderSectionPaginated('export-prd', true)
-                            if (mmd) {
-                              const flowWrap = root.querySelector('#export-flowchart') as HTMLElement | null
-                              const svg = flowWrap?.querySelector('svg') as SVGSVGElement | null
-                              if (svg) {
-                                // Fit SVG into page while preserving aspect ratio
-                                const vb = svg.viewBox.baseVal
-                                const svgW = vb && vb.width ? vb.width : (svg.clientWidth || 1000)
-                                const svgH = vb && vb.height ? vb.height : (svg.clientHeight || 600)
-                                const scale = Math.min(maxWidth / svgW, (pageHeight - margin * 2) / svgH)
-                                doc.addPage()
-                                svg2pdf(svg, doc as any, {
-                                  x: margin,
-                                  y: margin,
-                                  width: svgW * scale,
-                                  height: svgH * scale,
-                                })
-                              } else {
-                                await renderSectionPaginated('export-flowchart', false)
-                              }
-                            }
-                            if (schema) await renderSectionPaginated('export-schema', false)
-
-                            const name = `PRD_project_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`
-                            doc.save(name)
-                          } catch (e: any) {
-                            toast({ title: 'Export failed', description: e?.message || 'Unknown error' })
-                          } finally {
-                            setExportPortal(null)
-                            setExporting(false)
-                            resolve()
-                          }
-                        }}
-                      />
-                    )
-                  })
-                }}
-                title={exporting ? 'Export in progress' : ''}
-              >
-                <Download className="h-4 w-4 mr-1"/>Export PDF
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!session.state.projectId || session.isBusy()}
-                onClick={async () => {
-                  const prd = (session.state.prdMarkdown || '').trim()
-                  if (!prd) {
-                    toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
-                    return
-                  }
-                  // Auto-generate schema, then show embedded schema view
-                  try {
-                    await session.generateSchema()
-                  } catch (e: any) {
-                    toast({ title: 'Schema', description: e?.message || 'Failed to generate schema' })
-                    return
-                  }
-                  setActiveTab('schema')
-                }}
-                title={session.isBusy() ? 'Disabled while another generation is in progress' : ''}
-              >
-                {session.state.schemaEverGenerated ? 'Update Schema' : 'Generate Schema'}
-              </Button>
-              <Button
-                size="sm"
-                disabled={session.state.isStreaming || !session.state.unsavedChanges}
-                onClick={async () => {
-                  try {
-                    const res = await session.save()
-                    toast({ title: 'Saved', description: `Version ${res.version}` })
-                  } catch (e: any) {
-                    if (e?.status === 409) {
-                      // ETag conflict — simple resolution: force save (optimistic choice)
-                      toast({ title: 'Conflict detected', description: 'Retrying with latest version...' })
-                      try {
-                        const res2 = await session.saveForce()
-                        toast({ title: 'Saved after refresh', description: `Version ${res2.version}` })
-                      } catch (ee: any) {
-                        toast({ title: 'Save failed', description: ee?.message || 'Unknown error' })
-                      }
-                    } else {
-                      toast({ title: 'Save failed', description: e?.message || 'Unknown error' })
+          <div className="border-b px-4 shrink-0">
+            {/* First row: Tabs on left, Save on right */}
+            <div className="h-12 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TabsList className="h-8">
+                  <TabsTrigger value="prd">PRD</TabsTrigger>
+                  <TabsTrigger value="flow">Flowchart</TabsTrigger>
+                  <TabsTrigger value="schema" onClick={() => {
+                    const prd = (session.state.prdMarkdown || '').trim()
+                    if (!prd) {
+                      toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
+                      return
                     }
-                  }
-                }}
-                title={session.state.isStreaming ? 'Disabled while streaming' : (session.state.unsavedChanges ? '' : 'No changes')}
-              >
-                <Save className="h-4 w-4 mr-1"/>Save
-              </Button>
+                    // Stay embedded; offer a link in the embedded view to open full page
+                  }}>Schema</TabsTrigger>
+                </TabsList>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={session.state.isStreaming || !session.state.unsavedChanges}
+                  onClick={async () => {
+                    try {
+                      const res = await session.save()
+                      toast({ title: 'Saved', description: `Version ${res.version}` })
+                    } catch (e: any) {
+                      if (e?.status === 409) {
+                        // ETag conflict — simple resolution: force save (optimistic choice)
+                        toast({ title: 'Conflict detected', description: 'Retrying with latest version...' })
+                        try {
+                          const res2 = await session.saveForce()
+                          toast({ title: 'Saved after refresh', description: `Version ${res2.version}` })
+                        } catch (ee: any) {
+                          toast({ title: 'Save failed', description: ee?.message || 'Unknown error' })
+                        }
+                      } else {
+                        toast({ title: 'Save failed', description: e?.message || 'Unknown error' })
+                      }
+                    }
+                  }}
+                  title={session.state.isStreaming ? 'Disabled while streaming' : (session.state.unsavedChanges ? '' : 'No changes')}
+                >
+                  <Save className="h-4 w-4 mr-1"/>Save
+                </Button>
+              </div>
+            </div>
+
+            {/* Second row: Action buttons on left, Export PDF on right */}
+            <div className="h-10 flex items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => session.fetchVersions().catch(() => {})}
+                >
+                  <History className="h-4 w-4 mr-1"/>History
+                </Button>
+                {ENABLE_FLOWCHART_BUTTON && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!session.state.projectId || isStreaming || isFlowStreaming}
+                  onClick={async () => {
+                    try {
+                      await session.generateFlowchart()
+                      setActiveTab('flow')
+                    } catch (e: any) {
+                      toast({ title: 'Flowchart', description: e?.message || 'Failed to start flowchart run' })
+                    }
+                  }}
+                  title={isFlowStreaming ? 'Flowchart run in progress' : ''}
+                >
+                  {session.state.mermaid ? 'Update Flowchart' : 'Generate Flowchart'}
+                </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!session.state.projectId || session.isBusy()}
+                  onClick={async () => {
+                    const prd = (session.state.prdMarkdown || '').trim()
+                    if (!prd) {
+                      toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
+                      return
+                    }
+                    // Auto-generate schema, then show embedded schema view
+                    try {
+                      await session.generateSchema()
+                    } catch (e: any) {
+                      toast({ title: 'Schema', description: e?.message || 'Failed to generate schema' })
+                      return
+                    }
+                    setActiveTab('schema')
+                  }}
+                  title={session.isBusy() ? 'Disabled while another generation is in progress' : ''}
+                >
+                  {session.state.schemaEverGenerated ? 'Update Schema' : 'Generate Schema'}
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={exporting || session.state.isStreaming || session.isBusy()}
+                  onClick={async () => {
+                    const prd = (session.state.prdMarkdown || '').trim()
+                    const mmd = (session.state.mermaid || session.state.lastGoodMermaid || '').trim()
+                    const schema = (session.state.schemaMarkdown || '').trim()
+                    if (!prd) {
+                      toast({ title: 'Export', description: 'No PRD content to export.' })
+                      return
+                    }
+                    setExporting(true)
+                    // Mount offscreen sandbox and wait for onReady to render
+                    await new Promise<void>((resolve) => {
+                      setExportPortal(
+                        <PdfExportSandbox
+                          prdMarkdown={prd}
+                          mermaidCode={mmd}
+                          schemaMarkdown={schema}
+                          onReady={async (root) => {
+                            try {
+                              const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
+                              const pageWidth = doc.internal.pageSize.getWidth()
+                              const pageHeight = doc.internal.pageSize.getHeight()
+                              const margin = 36 // 0.5 inch
+                              const maxWidth = pageWidth - margin * 2
+
+                              async function renderSectionPaginated(id: string, isFirst: boolean) {
+                                const el = root.querySelector(`#${id}`) as HTMLElement | null
+                                if (!el) return
+                                const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true })
+                                const imgWpx = canvas.width
+                                const imgHpx = canvas.height
+                                const pxPerPt = imgWpx / maxWidth // scale image to fit width
+                                const pageInnerHeightPt = pageHeight - margin * 2
+                                const pageInnerHeightPx = Math.floor(pageInnerHeightPt * pxPerPt)
+
+                                const tmpCanvas = document.createElement('canvas')
+                                const ctx = tmpCanvas.getContext('2d')!
+                                let renderedPages = 0
+                                for (let offsetPx = 0; offsetPx < imgHpx; offsetPx += pageInnerHeightPx) {
+                                  const sliceHeightPx = Math.min(pageInnerHeightPx, imgHpx - offsetPx)
+                                  tmpCanvas.width = imgWpx
+                                  tmpCanvas.height = sliceHeightPx
+                                  ctx.clearRect(0, 0, tmpCanvas.width, tmpCanvas.height)
+                                  ctx.drawImage(canvas, 0, offsetPx, imgWpx, sliceHeightPx, 0, 0, imgWpx, sliceHeightPx)
+                                  const imgData = tmpCanvas.toDataURL('image/jpeg', 0.82)
+                                  const sliceHeightPt = sliceHeightPx / pxPerPt
+                                  if (!isFirst || renderedPages > 0) doc.addPage()
+                                  doc.addImage(imgData, 'JPEG', margin, margin, maxWidth, sliceHeightPt)
+                                  renderedPages += 1
+                                }
+                              }
+
+                              await renderSectionPaginated('export-prd', true)
+                              if (mmd) {
+                                const flowWrap = root.querySelector('#export-flowchart') as HTMLElement | null
+                                const svg = flowWrap?.querySelector('svg') as SVGSVGElement | null
+                                if (svg) {
+                                  // Fit SVG into page while preserving aspect ratio
+                                  const vb = svg.viewBox.baseVal
+                                  const svgW = vb && vb.width ? vb.width : (svg.clientWidth || 1000)
+                                  const svgH = vb && vb.height ? vb.height : (svg.clientHeight || 600)
+                                  const scale = Math.min(maxWidth / svgW, (pageHeight - margin * 2) / svgH)
+                                  doc.addPage()
+                                  svg2pdf(svg, doc as any, {
+                                    x: margin,
+                                    y: margin,
+                                    width: svgW * scale,
+                                    height: svgH * scale,
+                                  })
+                                } else {
+                                  await renderSectionPaginated('export-flowchart', false)
+                                }
+                              }
+                              if (schema) await renderSectionPaginated('export-schema', false)
+
+                              const name = `PRD_project_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`
+                              doc.save(name)
+                            } catch (e: any) {
+                              toast({ title: 'Export failed', description: e?.message || 'Unknown error' })
+                            } finally {
+                              setExportPortal(null)
+                              setExporting(false)
+                              resolve()
+                            }
+                          }}
+                        />
+                      )
+                    })
+                  }}
+                  title={exporting ? 'Export in progress' : ''}
+                >
+                  <Download className="h-4 w-4 mr-1"/>Export PDF
+                </Button>
+              </div>
             </div>
           </div>
 
