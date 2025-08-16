@@ -7,11 +7,10 @@ import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare } from 'l
 import PRDEditor from '@/components/PRDEditor'
 import FlowchartView from '@/components/FlowchartView'
 import ChatPanel, { ChatMessage } from '@/components/chat/ChatPanel'
-import ModeSegmented from '@/components/sidebar/ModeSegmented'
 
 export default function WorkspacePage() {
   const navigate = useNavigate()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
   const [activeTab, setActiveTab] = useState<'prd' | 'flow'>('prd')
   const [mode, setMode] = useState<'chat' | 'agent'>('agent')
   const [chatInput, setChatInput] = useState('')
@@ -184,6 +183,7 @@ A smart task management application that uses AI to prioritize and organize task
           <div className="flex-1 min-h-0">
             <ChatPanel
               mode={mode}
+              onModeChange={setMode}
               messages={messages}
               input={chatInput}
               setInput={setChatInput}
@@ -191,20 +191,6 @@ A smart task management application that uses AI to prioritize and organize task
               isTyping={isTyping}
               disabled={isTyping}
             />
-          </div>
-          <div className="shrink-0 space-y-3">
-            <ModeSegmented compact value={mode} onChange={setMode} />
-            <div className="text-xs text-muted-foreground text-center">
-              UI-only demo • No API integrations
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full justify-start"
-              onClick={() => navigate('/')}
-            >
-              ← Back to Home
-            </Button>
           </div>
         </div>
       </aside>

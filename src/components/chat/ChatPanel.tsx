@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Paperclip } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Send, Paperclip, MessageSquare, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TypingDots from "./TypingDots";
@@ -19,6 +20,7 @@ export interface ChatMessage {
 
 interface ChatPanelProps {
   mode: "chat" | "agent";
+  onModeChange: (mode: "chat" | "agent") => void;
   messages: ChatMessage[];
   input: string;
   setInput: (v: string) => void;
@@ -33,6 +35,7 @@ interface ChatPanelProps {
 
 export default function ChatPanel({ 
   mode, 
+  onModeChange,
   messages, 
   input, 
   setInput, 
@@ -147,10 +150,24 @@ export default function ChatPanel({
             if (!input.trim() || disabled) return;
             onSend();
           }}
+          className="h-[58px]"
         >
           <Send className="h-4 w-4" />
         </Button>
       </form>
+
+      {/* Mode Toggle - moved below the input form */}
+      <div className="flex items-center gap-1">
+        <Select onValueChange={onModeChange} value={mode}>
+          <SelectTrigger className="w-[80px] h-6 text-[10px] px-2">
+            <SelectValue placeholder="Mode" />
+          </SelectTrigger>
+          <SelectContent className="w-[80px]">
+            <SelectItem value="chat" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Think</SelectItem>
+            <SelectItem value="agent" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Ask</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       
       {attachmentStatus && attachmentStatus !== 'idle' && (
         <div className="text-xs text-muted-foreground">
@@ -160,10 +177,6 @@ export default function ChatPanel({
           {attachmentStatus === 'error' && 'Attachment failed.'}
         </div>
       )}
-
-      <div className="text-[10px] text-muted-foreground text-right">
-        Powered by ThinkPRD Agent{lastUpdated ? ` • Last updated ${lastUpdated}` : ""}
-      </div>
     </div>
   );
 }
