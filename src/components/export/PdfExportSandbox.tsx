@@ -56,8 +56,8 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
               // Force dark text colors for all text elements (target text and tspans explicitly)
               const textElements = svgElement.querySelectorAll('text, tspan, .nodeLabel, .edgeLabel, .label')
               textElements.forEach((el: any) => {
-                el.style.fill = '#111111'
-                el.style.color = '#111111'
+                el.style.fill = '#000'
+                el.style.color = '#000'
                 el.style.stroke = 'none'
               })
               
@@ -133,5 +133,3 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
     </div>
   )
 }
-
-

@@ -1,72 +1,34 @@
-import { Brain, Bot, MessageSquare } from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-type Mode = "chat" | "agent";
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { MessageSquare, Bot } from 'lucide-react';
 
 interface ModeSegmentedProps {
-  value: Mode;
-  onChange: (value: Mode) => void;
+  value: 'chat' | 'agent';
+  onChange: (value: 'chat' | 'agent') => void;
   compact?: boolean;
 }
 
-export default function ModeSegmented({ value, onChange, compact }: ModeSegmentedProps) {
-  const groupClasses = compact
-    ? "w-full justify-center gap-2"
-    : "w-full rounded-full bg-muted/60 p-1 ring-1 ring-border";
-  const itemClasses = compact
-    ? "rounded-full px-2 py-1 ring-1 ring-border data-[state=on]:bg-background data-[state=on]:shadow-sm transition-colors"
-    : "flex-1 rounded-full px-3 py-1.5 data-[state=on]:bg-background data-[state=on]:shadow-sm transition-colors";
-  const iconSize = compact ? "h-3 w-3" : "h-3.5 w-3.5";
-  const textSize = compact ? "text-[11px]" : "text-xs";
+export default function ModeSegmented({ value, onChange, compact = false }: ModeSegmentedProps) {
   return (
-    <div className="w-full">
-      <ToggleGroup
-        type="single"
-        value={value}
-        onValueChange={(v) => v && onChange(v as Mode)}
-        className={groupClasses}
+    <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
+      <Button
+        variant={value === 'chat' ? 'secondary' : 'ghost'}
+        size={compact ? 'sm' : 'default'}
+        className={`flex-1 gap-2 ${value === 'chat' ? 'shadow-sm' : ''}`}
+        onClick={() => onChange('chat')}
       >
-        <TooltipProvider>
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <ToggleGroupItem
-                value="chat"
-                className={itemClasses}
-                aria-label="Chat mode"
-              >
-                <div className={`flex items-center justify-center gap-2 ${textSize}`}>
-                  <MessageSquare className={iconSize} />
-                  <span>Chat</span>
-                </div>
-              </ToggleGroupItem>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-              Ask questions grounded in your PRD and uploaded docs.
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <ToggleGroupItem
-                value="agent"
-                className={itemClasses}
-                aria-label="Agent mode"
-              >
-                <div className={`flex items-center justify-center gap-2 ${textSize}`}>
-                  <Bot className={iconSize} />
-                  <span>Agent</span>
-                </div>
-              </ToggleGroupItem>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-xs max-w-[220px]">
-              Apply changes directly to the PRD.
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </ToggleGroup>
+        <MessageSquare className="h-4 w-4" />
+        {!compact && 'Think'}
+      </Button>
+      <Button
+        variant={value === 'agent' ? 'secondary' : 'ghost'}
+        size={compact ? 'sm' : 'default'}
+        className={`flex-1 gap-2 ${value === 'agent' ? 'shadow-sm' : ''}`}
+        onClick={() => onChange('agent')}
+      >
+        <Bot className="h-4 w-4" />
+        {!compact && 'Agent'}
+      </Button>
     </div>
   );
 }
-
-

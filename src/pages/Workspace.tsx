@@ -1,172 +1,108 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, GitBranch, Link2, History, Save, MessageSquare, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { toast } from '@/components/ui/use-toast'
+import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
 import PRDEditor from '@/components/PRDEditor'
 import FlowchartView from '@/components/FlowchartView'
-import SchemaView from './SchemaView'
+import ChatPanel, { ChatMessage } from '@/components/chat/ChatPanel'
 import ModeSegmented from '@/components/sidebar/ModeSegmented'
-import ChatPanel from '@/components/chat/ChatPanel'
-import { useAgentSessionContext } from '@/context/AgentSessionContext'
-import { uploadProjectFiles, listProjectFiles } from '@/api/projects'
-import { ENABLE_FLOWCHART_BUTTON } from '@/api/config'
-import PdfExportSandbox from '@/components/export/PdfExportSandbox'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-// svg2pdf.js publishes a named export
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { svg2pdf } from 'svg2pdf.js'
-/* no longer using inline HITL input banner */
 
 export default function WorkspacePage() {
-  const { projectId, chatId } = useParams()
   const navigate = useNavigate()
-  const session = useAgentSessionContext()
   const [collapsed, setCollapsed] = useState(false)
+  const [activeTab, setActiveTab] = useState<'prd' | 'flow'>('prd')
   const [mode, setMode] = useState<'chat' | 'agent'>('agent')
-  const [activeTab, setActiveTab] = useState<'prd' | 'flow' | 'schema'>('prd')
   const [chatInput, setChatInput] = useState('')
-  const initialRunSentRef = useRef(false)
-  const wsReadyRef = useRef(false)
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ id: string; filename: string; url?: string }>>([])
-  const [exporting, setExporting] = useState(false)
-  const [exportPortal, setExportPortal] = useState<JSX.Element | null>(null)
+  const [isTyping, setIsTyping] = useState(false)
+  const [prdContent, setPrdContent] = useState(`# Sample PRD: AI Task Manager
 
-  // Connect/disconnect lifecycle
-  useEffect(() => {
-    if (projectId && chatId) {
-      // Ensure provider state has IDs for deep links or refresh
-      if (session.state.projectId !== projectId || session.state.chatId !== chatId) {
-        session.setIds(projectId, chatId)
-      }
-      session.connect().then(() => {
-        wsReadyRef.current = true
-      }).catch(() => {})
-      return () => {
-        // Keep WS connection alive across route changes (e.g., SchemaView)
-        wsReadyRef.current = false
-      }
-    }
-  }, [projectId, chatId])
-  // Fetch once when project changes
-  useEffect(() => {
-    const pid = session.state.projectId
-    if (!pid) return
-    listProjectFiles(pid)
-      .then((res) => setUploadedFiles(res.files || []))
-      .catch(() => {})
-  }, [session.state.projectId])
+## Overview
+A smart task management application that uses AI to prioritize and organize tasks based on user behavior and deadlines.
 
-  // Refresh file list when an attachment finishes indexing
-  useEffect(() => {
-    const pid = session.state.projectId
-    if (!pid) return
-    if (session.state.attachmentStatus === 'ready') {
-      listProjectFiles(pid)
-        .then((res) => setUploadedFiles(res.files || []))
-        .catch(() => {})
-    }
-  }, [session.state.attachmentStatus, session.state.projectId])
+## Features
+- AI-powered task prioritization
+- Smart deadline detection
+- Natural language task input
+- Collaborative workspaces
+- Mobile and web apps
 
-  async function onUploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    try {
-      const pid = session.state.projectId
-      if (!pid) throw new Error('projectId is not set')
-      const files = Array.from(e.target.files || [])
-      if (files.length === 0) return
-      await uploadProjectFiles(pid, files)
-      const res = await listProjectFiles(pid)
-      setUploadedFiles(res.files || [])
-      toast({ title: 'Uploaded', description: `${files.length} file(s) added and indexed` })
-      // Trigger lastUpdated bump to refresh UI
-    } catch (err: any) {
-      toast({ title: 'Upload failed', description: err?.message || 'Unknown error' })
-    } finally {
-      e.currentTarget.value = ''
+## User Stories
+1. As a busy professional, I want AI to prioritize my tasks so I can focus on what matters most
+2. As a team lead, I want to see team workload distribution
+3. As a project manager, I want automatic deadline tracking
+
+## Success Metrics
+- 40% increase in task completion rates
+- 60% reduction in missed deadlines
+- 4.5+ app store rating`)
+
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hello! I\'m your PRD Agent. I can help you refine and improve your Product Requirements Document. What would you like to work on?',
+      timestamp: new Date().toISOString()
     }
+  ])
+
+  const [mockFlowchart] = useState(`flowchart TD
+    A[Product Idea] --> B[Requirements Gathering]
+    B --> C[AI Task Analysis]
+    C --> D[Priority Algorithm]
+    D --> E[User Interface Design]
+    E --> F[Development]
+    F --> G[Testing]
+    G --> H[Launch]`)
+
+  // Mock responses for different chat modes
+  const mockResponses = {
+    agent: [
+      "I'll help you refine that section of the PRD. Let me suggest some improvements based on best practices.",
+      "Great question! I've updated the PRD to include more detailed user stories and acceptance criteria.",
+      "I've analyzed your requirements and added some missing technical considerations to the document.",
+      "Based on your input, I've enhanced the success metrics section with more specific KPIs."
+    ],
+    chat: [
+      "That's an interesting point about the user experience. Here are some considerations...",
+      "From a product perspective, you might want to think about these aspects...",
+      "I can help clarify that section. Let me break it down for you...",
+      "Good observation! This relates to several other parts of your PRD..."
+    ]
   }
 
-  // Auto-send initial agent run once (only if PRD is empty - not for restored projects)
-  useEffect(() => {
-    if (initialRunSentRef.current) return
-    if (!session.state.projectId || !session.state.chatId) return
-    if (!session.state.wsConnected && !wsReadyRef.current) return
-    
-    // Skip initial generation if PRD already has content (restored from previous session)
-    if (session.state.prdMarkdown && session.state.prdMarkdown.trim()) {
-      initialRunSentRef.current = true // Mark as sent to prevent future runs
-      return
-    }
-    
-    initialRunSentRef.current = true
-    const content = session.state.initialIdea
-      ? `Generate a PRD outline only using the shared template. No commentary.`
-      : `Generate a PRD outline only using the shared template. No commentary.`
-    session.sendAgentMessage(content, { silent: true }).catch(() => {
-      initialRunSentRef.current = false
-    })
-  }, [session.state.projectId, session.state.chatId, session.state.wsConnected, session.state.prdMarkdown])
-
-  const versions = useMemo(() => session.state.versions.map(v => ({
-    version: v.version,
-    timestamp: v.timestamp,
-    changes: v.changes || ''
-  })), [session.state.versions])
-
-  const messages = session.state.messages
-  const isStreaming = session.state.isStreaming
-  const isFlowStreaming = !!session.state.isFlowchartStreaming
-  const wsConnected = session.state.wsConnected
-  const lastUpdated = session.state.lastUpdated
-  const questionPlan = session.state.questionPlan || []
-  const pendingSection = session.state.lastPendingSection || ''
-  // Thinking lens UI removed from sidebar; we still keep state internally in session
-
-  const onSend = () => {
+  const handleSendMessage = () => {
     if (!chatInput.trim()) return
-    if (mode === 'agent') {
-      // If a question is pending, treat this as the answer to resume the agent
-      if (session.state.pendingQuestion) {
-        session.answerPendingQuestion(chatInput.trim())
-          .then(() => setChatInput(''))
-          .catch((e: any) => toast({ title: 'Failed to send answer', description: e?.message || 'Unknown error' }))
-        return
-      }
-      if (isStreaming || session.isBusy()) {
-        const msg = 'Generation in progress. Please wait for the current run to finish.'
-        toast({ title: 'Agent busy', description: msg })
-        return
-      }
-      // Immediately show local typing indicator for responsiveness
-      session.sendAgentMessage(chatInput.trim()).catch((e: any) => {
-        const msg = e?.message || 'Failed to send message'
-        toast({ title: 'Send failed', description: msg })
-      })
-      setChatInput('')
-    } else {
-      // Chat mode: immediate thinking indicator is set in hook
-      session.sendChatMessage(chatInput.trim()).catch((e: any) => {
-        const msg = e?.message || 'Failed to send message'
-        toast({ title: 'Send failed', description: msg })
-      })
-      setChatInput('')
+    
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: chatInput.trim(),
+      timestamp: new Date().toISOString()
     }
-  }
+    
+    setMessages(prev => [...prev, userMessage])
+    setChatInput('')
+    setIsTyping(true)
 
-  const prdValue = session.state.prdMarkdown
-  const onPrdChange = (v: string) => {
-    if (isStreaming) return
-    session.setPrdMarkdown(v)
+    // Simulate AI response
+    setTimeout(() => {
+      const responses = mockResponses[mode]
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+      
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: randomResponse,
+        timestamp: new Date().toISOString()
+      }
+      
+      setMessages(prev => [...prev, assistantMessage])
+      setIsTyping(false)
+    }, 1500)
   }
-
-  const [mermaidOk, setMermaidOk] = useState(true)
-  const flowCode = session.state.mermaid || session.state.lastGoodMermaid
-  // HITL banner removed; Q/A happens in chat
 
   return (
     <div className="h-screen overflow-hidden flex w-full ambient-spotlight" onMouseMove={(e) => {
@@ -196,38 +132,13 @@ export default function WorkspacePage() {
             <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
               <GitBranch className="h-4 w-4" /> {!collapsed && <span>Flowchart.mmd</span>}
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 px-2 py-1">
-                <Link2 className="h-4 w-4" /> {!collapsed && <span>Sources</span>}
-              </div>
-              {/* Upload moved to chat input (single PDF). Left panel upload control removed. */}
-            </div>
-            {!collapsed && (
-              <div className="pl-8 space-y-1 text-xs text-muted-foreground">
-                {uploadedFiles.map((f) => (
-                  <div key={f.id} className="truncate">{f.filename}</div>
-                ))}
-                {uploadedFiles.length === 0 && (
-                  <div className="text-muted-foreground/70">No sources yet</div>
-                )}
-              </div>
-            )}
           </div>
           <Separator className="my-2" />
           {!collapsed && (
             <div>
               <div className="text-muted-foreground mb-2">Versions</div>
               <div className="space-y-2">
-                {versions.map((v) => (
-                  <Card key={v.version} className="bg-card/60">
-                    <CardHeader className="py-2">
-                      <CardTitle className="text-sm">{v.version} <span className="text-xs text-muted-foreground">• {new Date(v.timestamp).toLocaleString()}</span></CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-xs text-muted-foreground">
-                      {v.changes}
-                    </CardContent>
-                  </Card>
-                ))}
+                <div className="text-xs text-muted-foreground">v1.0 • Sample PRD</div>
               </div>
             </div>
           )}
@@ -238,339 +149,65 @@ export default function WorkspacePage() {
       <main className="flex-1 min-h-0 flex flex-col">
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 min-h-0 flex flex-col">
           <div className="border-b px-4 shrink-0">
-            {/* First row: Tabs on left, Save on right */}
             <div className="h-12 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <TabsList className="h-8">
                   <TabsTrigger value="prd">PRD</TabsTrigger>
                   <TabsTrigger value="flow">Flowchart</TabsTrigger>
-                  <TabsTrigger value="schema" onClick={() => {
-                    const prd = (session.state.prdMarkdown || '').trim()
-                    if (!prd) {
-                      toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
-                      return
-                    }
-                    // Stay embedded; offer a link in the embedded view to open full page
-                  }}>Schema</TabsTrigger>
                 </TabsList>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  disabled={session.state.isStreaming || !session.state.unsavedChanges}
-                  onClick={async () => {
-                    try {
-                      const res = await session.save()
-                      toast({ title: 'Saved', description: `Version ${res.version}` })
-                    } catch (e: any) {
-                      if (e?.status === 409) {
-                        // ETag conflict — simple resolution: force save (optimistic choice)
-                        toast({ title: 'Conflict detected', description: 'Retrying with latest version...' })
-                        try {
-                          const res2 = await session.saveForce()
-                          toast({ title: 'Saved after refresh', description: `Version ${res2.version}` })
-                        } catch (ee: any) {
-                          toast({ title: 'Save failed', description: ee?.message || 'Unknown error' })
-                        }
-                      } else {
-                        toast({ title: 'Save failed', description: e?.message || 'Unknown error' })
-                      }
-                    }
-                  }}
-                  title={session.state.isStreaming ? 'Disabled while streaming' : (session.state.unsavedChanges ? '' : 'No changes')}
-                >
-                  <Save className="h-4 w-4 mr-1"/>Save
-                </Button>
-              </div>
-            </div>
-
-            {/* Second row: Action buttons on left, Export PDF on right */}
-            <div className="h-10 flex items-center justify-between pb-2">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => session.fetchVersions().catch(() => {})}
-                >
-                  <History className="h-4 w-4 mr-1"/>History
-                </Button>
-                {ENABLE_FLOWCHART_BUTTON && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!session.state.projectId || isStreaming || isFlowStreaming}
-                  onClick={async () => {
-                    try {
-                      await session.generateFlowchart()
-                      setActiveTab('flow')
-                    } catch (e: any) {
-                      toast({ title: 'Flowchart', description: e?.message || 'Failed to start flowchart run' })
-                    }
-                  }}
-                  title={isFlowStreaming ? 'Flowchart run in progress' : ''}
-                >
-                  {session.state.mermaid ? 'Update Flowchart' : 'Generate Flowchart'}
-                </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!session.state.projectId || session.isBusy()}
-                  onClick={async () => {
-                    const prd = (session.state.prdMarkdown || '').trim()
-                    if (!prd) {
-                      toast({ title: 'Schema', description: 'Please generate or edit your PRD before generating a schema.' })
-                      return
-                    }
-                    // Auto-generate schema, then show embedded schema view
-                    try {
-                      await session.generateSchema()
-                    } catch (e: any) {
-                      toast({ title: 'Schema', description: e?.message || 'Failed to generate schema' })
-                      return
-                    }
-                    setActiveTab('schema')
-                  }}
-                  title={session.isBusy() ? 'Disabled while another generation is in progress' : ''}
-                >
-                  {session.state.schemaEverGenerated ? 'Update Schema' : 'Generate Schema'}
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={exporting || session.state.isStreaming || session.isBusy()}
-                  onClick={async () => {
-                    const prd = (session.state.prdMarkdown || '').trim()
-                    const mmd = (session.state.mermaid || session.state.lastGoodMermaid || '').trim()
-                    const schema = (session.state.schemaMarkdown || '').trim()
-                    if (!prd) {
-                      toast({ title: 'Export', description: 'No PRD content to export.' })
-                      return
-                    }
-                    setExporting(true)
-                    // Mount offscreen sandbox and wait for onReady to render
-                    await new Promise<void>((resolve) => {
-                      setExportPortal(
-                        <PdfExportSandbox
-                          prdMarkdown={prd}
-                          mermaidCode={mmd}
-                          schemaMarkdown={schema}
-                          onReady={async (root) => {
-                            try {
-                              const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' })
-                              const pageWidth = doc.internal.pageSize.getWidth()
-                              const pageHeight = doc.internal.pageSize.getHeight()
-                              const margin = 36 // 0.5 inch
-                              const maxWidth = pageWidth - margin * 2
-
-                            function fillWhiteBackground() {
-                              try {
-                                doc.setFillColor(255, 255, 255)
-                                // Cover full page to avoid viewer-default dark backgrounds
-                                doc.rect(0, 0, pageWidth, pageHeight, 'F')
-                              } catch {}
-                            }
-
-                              async function renderSectionPaginated(id: string, isFirst: boolean) {
-                                const el = root.querySelector(`#${id}`) as HTMLElement | null
-                                if (!el) return
-                                const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true })
-                                const imgWpx = canvas.width
-                                const imgHpx = canvas.height
-                                const pxPerPt = imgWpx / maxWidth // scale image to fit width
-                                const pageInnerHeightPt = pageHeight - margin * 2
-                                const pageInnerHeightPx = Math.floor(pageInnerHeightPt * pxPerPt)
-
-                                const tmpCanvas = document.createElement('canvas')
-                                const ctx = tmpCanvas.getContext('2d')!
-                                let renderedPages = 0
-                                for (let offsetPx = 0; offsetPx < imgHpx; offsetPx += pageInnerHeightPx) {
-                                  const sliceHeightPx = Math.min(pageInnerHeightPx, imgHpx - offsetPx)
-                                  tmpCanvas.width = imgWpx
-                                  tmpCanvas.height = sliceHeightPx
-                                  ctx.clearRect(0, 0, tmpCanvas.width, tmpCanvas.height)
-                                  ctx.drawImage(canvas, 0, offsetPx, imgWpx, sliceHeightPx, 0, 0, imgWpx, sliceHeightPx)
-                                  const imgData = tmpCanvas.toDataURL('image/jpeg', 0.82)
-                                  const sliceHeightPt = sliceHeightPx / pxPerPt
-                                if (!isFirst || renderedPages > 0) {
-                                  doc.addPage()
-                                }
-                                // Always ensure the current page has a white background before drawing
-                                fillWhiteBackground()
-                                  doc.addImage(imgData, 'JPEG', margin, margin, maxWidth, sliceHeightPt)
-                                  renderedPages += 1
-                                }
-                              }
-
-                              await renderSectionPaginated('export-prd', true)
-                              if (mmd) {
-                                const flowWrap = root.querySelector('#export-flowchart') as HTMLElement | null
-                                const svg = flowWrap?.querySelector('svg') as SVGSVGElement | null
-                                if (svg) {
-                                  // Fit SVG into page while preserving aspect ratio
-                                  const vb = svg.viewBox.baseVal
-                                  const svgW = vb && vb.width ? vb.width : (svg.clientWidth || 1000)
-                                  const svgH = vb && vb.height ? vb.height : (svg.clientHeight || 600)
-                                  const scale = Math.min(maxWidth / svgW, (pageHeight - margin * 2) / svgH)
-                                  doc.addPage()
-                                  fillWhiteBackground()
-                                  svg2pdf(svg, doc as any, {
-                                    x: margin,
-                                    y: margin,
-                                    width: svgW * scale,
-                                    height: svgH * scale,
-                                  })
-                                } else {
-                                  await renderSectionPaginated('export-flowchart', false)
-                                }
-                              }
-                              if (schema) await renderSectionPaginated('export-schema', false)
-
-                              const name = `PRD_project_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`
-                              doc.save(name)
-                            } catch (e: any) {
-                              toast({ title: 'Export failed', description: e?.message || 'Unknown error' })
-                            } finally {
-                              setExportPortal(null)
-                              setExporting(false)
-                              resolve()
-                            }
-                          }}
-                        />
-                      )
-                    })
-                  }}
-                  title={exporting ? 'Export in progress' : ''}
-                >
-                  <Download className="h-4 w-4 mr-1"/>Export PDF
-                </Button>
               </div>
             </div>
           </div>
 
           <div className="p-4 flex-1 min-h-0 overflow-auto">
             <TabsContent value="prd" className="mt-0">
-              {session.state.pendingQuestion && (
-                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
-                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-amber-500" />
-                  <span>
-                    Awaiting your answer for “{pendingSection || 'current section'}”. PRD won’t update until you answer.
-                  </span>
-                </div>
-              )}
-              {!wsConnected && (
-                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
-                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
-                  <span>Loading your workspace… restoring previous session.</span>
-                </div>
-              )}
-              {session.state.isStreaming && (
-                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
-                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
-                  <span>
-                    {session.state.lastPendingSection
-                      ? `Incorporating your answer into “${session.state.lastPendingSection}”…`
-                      : 'Building your workspace… streaming PRD. Editing is temporarily disabled.'}
-                  </span>
-                </div>
-              )}
-              <PRDEditor value={prdValue} onChange={onPrdChange} disabled={session.state.isStreaming} />
+              <PRDEditor 
+                value={prdContent} 
+                onChange={setPrdContent} 
+                disabled={false} 
+              />
             </TabsContent>
             <TabsContent value="flow" className="mt-0">
-              {isFlowStreaming && (
-                <div className="mb-2 flex items-center gap-2 rounded-md border border-border/50 bg-muted/40 text-muted-foreground px-3 py-2 text-xs">
-                  <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-primary" />
-                  <span>{session.state.mermaid ? 'Updating flowchart…' : 'Generating flowchart…'}</span>
-                </div>
-              )}
-            
-              <FlowchartView code={flowCode} onRenderResult={(ok) => {
-                setMermaidOk(ok)
-                session.markMermaidRendered(ok)
-              }} />
-            </TabsContent>
-            <TabsContent value="schema" className="mt-0">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs text-muted-foreground">Embedded schema preview</div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    if (session.state.projectId && session.state.chatId) {
-                      navigate(`/workspace/${encodeURIComponent(session.state.projectId)}/${encodeURIComponent(session.state.chatId)}/schema`)
-                    }
-                  }}
-                >
-                  Open full page
-                </Button>
-              </div>
-              <SchemaView embedded />
+              <FlowchartView code={mockFlowchart} />
             </TabsContent>
           </div>
         </Tabs>
       </main>
 
-      {/* Right sidebar */}
+      {/* Right sidebar with chat */}
       <aside className="w-96 border-l bg-sidebar flex flex-col h-full shrink-0">
         <div className="h-12 border-b px-3 flex items-center gap-2 shrink-0">
-          <MessageSquare className="h-4 w-4" /> <span>PRD Agent</span>
+          <MessageSquare className="h-4 w-4" /> 
+          <span className="font-medium">PRD Agent</span>
         </div>
         <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-auto">
-          {/* Question plan panel */}
-          <div className="shrink-0">
-            <Card className="bg-card/60">
-              <CardHeader className="py-2">
-                <CardTitle className="text-sm">Question Plan</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-2">
-                {questionPlan.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">No plan received yet.</div>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-auto pr-1">
-                    {questionPlan.map((q) => {
-                      const isActive = pendingSection && q.section === pendingSection
-                      return (
-                        <div key={q.id} className={`rounded border px-2 py-1 text-xs ${isActive ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' : 'border-border/50'}`}>
-                          <div className="font-medium truncate">{q.section}</div>
-                          <div className="text-muted-foreground truncate">{q.question}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
           <div className="flex-1 min-h-0">
             <ChatPanel
               mode={mode}
               messages={messages}
               input={chatInput}
               setInput={setChatInput}
-              onSend={onSend}
-              isTyping={isStreaming}
-              lastUpdated={lastUpdated}
-              disabled={isStreaming || session.isBusy()}
-              streamingAssistantContent={session.state.streamingAssistantContent}
-              onUploadPdf={async (f) => {
-                try {
-                  await session.uploadChatAttachment(f)
-                } catch (e: any) {
-                  toast({ title: 'Upload failed', description: e?.message || 'Unknown error' })
-                }
-              }}
-              attachmentStatus={session.state.attachmentStatus}
+              onSend={handleSendMessage}
+              isTyping={isTyping}
+              disabled={isTyping}
             />
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 space-y-3">
             <ModeSegmented compact value={mode} onChange={setMode} />
+            <div className="text-xs text-muted-foreground text-center">
+              UI-only demo • No API integrations
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full justify-start"
+              onClick={() => navigate('/')}
+            >
+              ← Back to Home
+            </Button>
           </div>
         </div>
       </aside>
-      {/* Offscreen export portal */}
-      {exportPortal}
     </div>
   )
 }

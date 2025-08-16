@@ -31,9 +31,21 @@ interface ChatPanelProps {
   attachmentStatus?: 'idle' | 'uploading' | 'indexing' | 'ready' | 'error';
 }
 
-export default function ChatPanel({ mode, messages, input, setInput, onSend, isTyping, lastUpdated, disabled, streamingAssistantContent, onUploadPdf, attachmentStatus }: ChatPanelProps) {
+export default function ChatPanel({ 
+  mode, 
+  messages, 
+  input, 
+  setInput, 
+  onSend, 
+  isTyping, 
+  lastUpdated, 
+  disabled, 
+  streamingAssistantContent, 
+  onUploadPdf, 
+  attachmentStatus 
+}: ChatPanelProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -92,9 +104,13 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
               accept="application/pdf"
               className="hidden"
               onChange={async (e) => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                try { await onUploadPdf(f) } finally { if (fileInputRef.current) fileInputRef.current.value = '' }
+                const f = e.target.files?.[0];
+                if (!f) return;
+                try { 
+                  await onUploadPdf(f); 
+                } finally { 
+                  if (fileInputRef.current) fileInputRef.current.value = ''; 
+                }
               }}
             />
             <Button
@@ -123,9 +139,11 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
           }}
           disabled={disabled}
         />
-        <Button type="submit" disabled={!input.trim() || !!disabled} title={disabled ? 'Disabled while streaming' : undefined}
+        <Button 
+          type="submit" 
+          disabled={!input.trim() || !!disabled} 
+          title={disabled ? 'Disabled while streaming' : undefined}
           onClick={(e) => {
-            // Defensive: if form submit handler doesn't run (rare), still request send
             if (!input.trim() || disabled) return;
             onSend();
           }}
@@ -133,6 +151,7 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
           <Send className="h-4 w-4" />
         </Button>
       </form>
+      
       {attachmentStatus && attachmentStatus !== 'idle' && (
         <div className="text-xs text-muted-foreground">
           {attachmentStatus === 'uploading' && 'Uploading PDF…'}
@@ -142,7 +161,9 @@ export default function ChatPanel({ mode, messages, input, setInput, onSend, isT
         </div>
       )}
 
-      <div className="text-[10px] text-muted-foreground text-right">Powered by ThinkPRD Agent{lastUpdated ? ` • Last updated ${lastUpdated}` : ""}</div>
+      <div className="text-[10px] text-muted-foreground text-right">
+        Powered by ThinkPRD Agent{lastUpdated ? ` • Last updated ${lastUpdated}` : ""}
+      </div>
     </div>
   );
 }
@@ -156,8 +177,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </Avatar>
       <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
         isAssistant ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-      }`}
-      >
+      }`}>
         {isAssistant ? (
           <div className="prose prose-invert prose-p:my-2 prose-ul:my-2 prose-pre:my-2 max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
@@ -169,5 +189,3 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     </div>
   );
 }
-
-
