@@ -16,7 +16,7 @@ export default function WorkspacePage() {
   const { state, actions } = usePRDSession()
   const [collapsed, setCollapsed] = useState(true)
   const [activeTab, setActiveTab] = useState<'prd' | 'flow'>('prd')
-  const [mode, setMode] = useState<'chat' | 'agent'>('agent')
+  const [mode, setMode] = useState<'agent' | 'ask'>('agent')
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -29,6 +29,8 @@ export default function WorkspacePage() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [chatWidth, setChatWidth] = useState(384) // Default width in pixels
   const [isResizing, setIsResizing] = useState(false)
+  const [attachmentStatus, setAttachmentStatus] = useState<'idle' | 'uploading' | 'indexing' | 'ready' | 'error'>('idle')
+  const [isUploading, setIsUploading] = useState(false)
   const resizeRef = useRef<HTMLDivElement>(null)
 
   // Redirect if no session
@@ -38,9 +40,9 @@ export default function WorkspacePage() {
     }
   }, [state.sessionId, state.status, navigate]);
 
-  // Add system messages when state changes
+  // Add system messages when state changes (only in agent mode)
   useEffect(() => {
-    if (state.lastMessage && state.lastMessage !== messages[messages.length - 1]?.content) {
+    if (mode === 'agent' && state.lastMessage && state.lastMessage !== messages[messages.length - 1]?.content) {
       const systemMessage: ChatMessage = {
         id: `system-${Date.now()}`,
         role: 'assistant',
@@ -49,7 +51,28 @@ export default function WorkspacePage() {
       };
       setMessages(prev => [...prev, systemMessage]);
     }
-  }, [state.lastMessage]);
+  }, [state.lastMessage, mode, messages]);
+
+  // Update initial message when mode changes
+  useEffect(() => {
+    if (messages.length === 1) {
+      const newMessage = mode === 'agent' 
+        ? 'Hello! I\'m your PRD Agent. I can help you refine and improve your Product Requirements Document. What would you like to work on?'
+        : 'Hello! I\'m your PRD Assistant. I can answer questions about your PRD and uploaded documents. What would you like to know?';
+      
+      setMessages([{
+        id: '1',
+        role: 'assistant',
+        content: newMessage,
+        timestamp: new Date().toISOString()
+      }]);
+    }
+    
+    // Clear attachment status when mode changes
+    setAttachmentStatus('idle');
+    setUploadFiles([]);
+    setIsUploading(false);
+  }, [mode]);
 
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
@@ -66,19 +89,64 @@ export default function WorkspacePage() {
     const messageContent = chatInput;
     setChatInput('');
 
-    // Send message through API
     try {
-      await actions.sendMessage(messageContent, uploadFiles.length > 0 ? uploadFiles : undefined);
-      setUploadFiles([]); // Clear files after sending
+      if (mode === 'ask') {
+        // Ask mode - use askQuestion action
+        const response = await actions.askQuestion(messageContent);
+        
+        // Add AI response to chat
+        const aiMessage: ChatMessage = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Clear attachment status for ask mode
+        setAttachmentStatus('idle');
+      } else {
+        // Agent mode - use sendMessage action (RAG context is automatically included)
+        await actions.sendMessage(messageContent);
+        setAttachmentStatus('idle');
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
+      
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
   const handleFileUpload = async (file: File) => {
-    setUploadFiles(prev => [...prev, file]);
-    // For now, just add to the files list. 
-    // In a more advanced implementation, we might show file upload status
+    setAttachmentStatus('uploading');
+    setIsUploading(true);
+    
+    try {
+      // Call the upload endpoint instantly
+      await actions.uploadFiles([file]);
+      
+      // Files are now uploaded and ingested
+      setAttachmentStatus('ready');
+      setIsUploading(false);
+      
+      // Clear the upload files since they're now part of the RAG context
+      setUploadFiles([]);
+      
+    } catch (error) {
+      setAttachmentStatus('error');
+      setIsUploading(false);
+      console.error('File upload failed:', error);
+      
+      // Remove the failed file
+      setUploadFiles(prev => prev.filter(f => f !== file));
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -311,9 +379,9 @@ export default function WorkspacePage() {
               setInput={setChatInput}
               onSend={handleSendMessage}
               isTyping={state.status === 'loading'}
-              disabled={state.status === 'loading' || !state.sessionId}
+              disabled={state.status === 'loading' || !state.sessionId || isUploading}
               onUploadPdf={handleFileUpload}
-              attachmentStatus={uploadFiles.length > 0 ? 'ready' : 'idle'}
+              attachmentStatus={attachmentStatus}
             />
           </div>
         </div>

@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
 import { sessionService, prdService, diagramService } from '@/services';
-import { useSSE } from '@/hooks/useSSE';
+
 import type { 
   PRDSessionState, 
   PRDSessionContextType,
   SessionStage,
   PRDSection,
   DiagramType,
-  SSEMessage,
   PRDDraftResponse,
   DiagramData
 } from '@/types/prd';
@@ -47,7 +46,7 @@ type PRDSessionAction =
   | { type: 'SET_ERROR'; payload: string }
   | { type: 'CLEAR_ERROR' }
   | { type: 'CLEAR_SESSION' }
-  | { type: 'SSE_UPDATE'; payload: SSEMessage };
+
 
 // Reducer function
 function prdSessionReducer(state: PRDSessionState, action: PRDSessionAction): PRDSessionState {
@@ -185,18 +184,7 @@ function prdSessionReducer(state: PRDSessionState, action: PRDSessionAction): PR
         ...initialState,
       };
 
-    case 'SSE_UPDATE':
-      return {
-        ...state,
-        stage: action.payload.stage || state.stage,
-        currentSection: action.payload.current_section || state.currentSection,
-        needsInput: action.payload.needs_input ?? state.needsInput,
-        lastMessage: action.payload.last_message || state.lastMessage,
-        progress: action.payload.progress || state.progress,
-        status: action.payload.needs_input === true ? 'active' : 'loading', // Set to active when needs input
-        errors: action.payload.error ? [...state.errors, action.payload.error] : state.errors,
-        lastUpdated: new Date(),
-      };
+
 
     default:
       return state;
@@ -215,47 +203,7 @@ export function PRDSessionProvider({ children }: PRDSessionProviderProps) {
   const [state, dispatch] = useReducer(prdSessionReducer, initialState);
   const currentPRDRef = useRef<PRDDraftResponse | null>(null);
 
-  // SSE hook for real-time updates
-  const { connectionState, connect: connectSSE, disconnect: disconnectSSE } = useSSE({
-    onMessage: (data: SSEMessage) => {
-      dispatch({ type: 'SSE_UPDATE', payload: data });
-      
-      // When AI finishes processing and needs input, stop loading and fetch PRD
-      if (data.needs_input === true) {
-        disconnectSSE(); // Close SSE connection when AI is done
-        
-        // Reset loading state immediately
-        dispatch({
-          type: 'UPDATE_MESSAGE',
-          payload: {
-            stage: data.stage || state.stage || 'init',
-            needsInput: true,
-            currentSection: data.current_section,
-            message: data.last_message,
-          },
-        });
-        
-        // Fetch updated PRD
-        if (state.sessionId) {
-          fetchAndUpdatePRD();
-        }
-      }
-    },
-    onError: (event) => {
-      console.warn('SSE connection error (this is normal for short AI responses):', event);
-      // Don't show error immediately - SSE connections can fail for normal reasons
-      // Only show error after multiple failures handled by useSSE hook
-    },
-    maxReconnectAttempts: 3, // Reduce reconnection attempts
-    reconnectInterval: 2000, // Longer initial delay
-  });
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      disconnectSSE();
-    };
-  }, [disconnectSSE]);
 
   // Fetch PRD data and detect changes
   const fetchAndUpdatePRD = useCallback(async () => {
@@ -339,24 +287,43 @@ export function PRDSessionProvider({ children }: PRDSessionProviderProps) {
           },
         });
 
-        // If AI needs immediate input, fetch PRD and don't start SSE
-        if (response.needs_input) {
-          // Fetch updated PRD immediately if AI is waiting for input
-          setTimeout(fetchAndUpdatePRD, 1000);
-        } else {
-          // Start SSE streaming if the AI is processing
-          setTimeout(() => {
-            connectSSE(state.sessionId!, message);
-          }, 500);
-          
-          // Also fetch PRD after a delay as backup
-          setTimeout(fetchAndUpdatePRD, 2000);
-        }
+        // Fetch updated PRD after a delay
+        setTimeout(fetchAndUpdatePRD, 1000);
       } catch (error) {
         dispatch({ 
           type: 'SET_ERROR', 
           payload: `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
+      }
+    },
+
+    askQuestion: async (message: string) => {
+      if (!state.sessionId) return;
+      
+      try {
+        const response = await sessionService.askQuestion(state.sessionId, message);
+        return response;
+      } catch (error) {
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: `Failed to ask question: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        throw error;
+      }
+    },
+
+    uploadFiles: async (files: File[]) => {
+      if (!state.sessionId) return;
+      
+      try {
+        const response = await sessionService.uploadFiles(state.sessionId, files);
+        return response;
+      } catch (error) {
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: `Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        throw error;
       }
     },
 
@@ -449,8 +416,7 @@ export function PRDSessionProvider({ children }: PRDSessionProviderProps) {
       try {
         const response = await sessionService.refinePRD(state.sessionId);
         
-        // Start SSE streaming for refinement process
-        connectSSE(state.sessionId);
+
 
         dispatch({
           type: 'UPDATE_MESSAGE',
@@ -473,7 +439,6 @@ export function PRDSessionProvider({ children }: PRDSessionProviderProps) {
     },
 
     clearSession: () => {
-      disconnectSSE();
       currentPRDRef.current = null;
       dispatch({ type: 'CLEAR_SESSION' });
     },
@@ -529,13 +494,3 @@ export function usePRDSession() {
   return context;
 }
 
-// Utility hook for SSE management (will be used by services)
-export function useEventSourceRef() {
-  const context = useContext(PRDSessionContext);
-  if (!context) {
-    throw new Error('useEventSourceRef must be used within a PRDSessionProvider');
-  }
-  
-  // This gives access to the event source ref for services to use
-  return useRef<EventSource | null>(null);
-}

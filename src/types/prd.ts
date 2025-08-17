@@ -35,6 +35,21 @@ export interface MessageResponse extends ApiResponse {
   current_section?: string;
 }
 
+// Ask mode types for PRD questions
+export interface AskRequest {
+  message: string;
+}
+
+export interface AskResponse extends ApiResponse {
+  answer: string;
+  question: string;
+  session_id: string;
+  context_used: {
+    prd_sections: number;
+    rag_documents: number;
+  };
+}
+
 // PRD Section types
 export interface PRDSection {
   key: string;
@@ -138,15 +153,7 @@ export interface SessionVersionResponse extends ApiResponse {
   version: SessionVersion;
 }
 
-// Server-Sent Events types
-export interface SSEMessage {
-  stage?: SessionStage;
-  current_section?: string;
-  needs_input?: boolean;
-  last_message?: string;
-  progress?: string;
-  error?: string;
-}
+
 
 // Client-side state types
 export interface PRDSessionState {
@@ -174,6 +181,8 @@ export interface PRDSessionContextType {
   actions: {
     createSession: (userId: string, idea: string) => Promise<void>;
     sendMessage: (message: string, files?: File[]) => Promise<void>;
+    askQuestion: (message: string) => Promise<AskResponse>;
+    uploadFiles: (files: File[]) => Promise<MessageResponse>;
     generateDiagram: (type: DiagramType) => Promise<void>;
     saveSession: () => Promise<void>;
     exportPRD: () => Promise<void>;

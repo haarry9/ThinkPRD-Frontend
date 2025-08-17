@@ -7,6 +7,8 @@ import type {
   SessionVersionResponse,
   MessageRequest,
   MessageResponse,
+  AskRequest,
+  AskResponse,
 } from '@/types/prd';
 
 /**
@@ -31,6 +33,60 @@ export class SessionService {
   async sendMessage(sessionId: string, message: string): Promise<MessageResponse> {
     const request: MessageRequest = { message };
     return await api.post<MessageResponse>(`/sessions/${sessionId}/message`, request);
+  }
+
+  /**
+   * Ask a question about the PRD (ask mode)
+   */
+  async askQuestion(sessionId: string, message: string): Promise<AskResponse> {
+    const request: AskRequest = { message };
+    return await api.post<AskResponse>(`/sessions/${sessionId}/ask`, request);
+  }
+
+  /**
+   * Upload files for RAG context (without message)
+   */
+  async uploadFiles(sessionId: string, files: File[]): Promise<MessageResponse> {
+    // Validate files
+    if (!files || files.length === 0) {
+      throw new Error('No files provided for upload');
+    }
+
+    files.forEach((file, index) => {
+      if (!(file instanceof File)) {
+        throw new Error(`File at index ${index} is not a valid File object`);
+      }
+      if (file.size === 0) {
+        throw new Error(`File at index ${index} (${file.name}) is empty`);
+      }
+    });
+
+    const formData = new FormData();
+    
+    // Add each file to the FormData with the 'files' field name
+    files.forEach((file, index) => {
+      formData.append('files', file);
+      console.log(`Appending file ${index}:`, {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      });
+    });
+
+    // Debug: Log FormData contents
+    console.log('FormData entries:');
+    for (let [key, value] of formData.entries()) {
+      console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+    }
+
+    // Debug: Log the endpoint being called
+    console.log('Calling endpoint:', `/sessions/${sessionId}/message-with-files`);
+
+    return await api.postFormData<MessageResponse>(
+      `/sessions/${sessionId}/message-with-files`,
+      formData
+    );
   }
 
   /**
@@ -89,17 +145,7 @@ export class SessionService {
     return await api.get<SessionVersionResponse>(`/sessions/${sessionId}/versions/${versionId}`);
   }
 
-  /**
-   * Create an EventSource for streaming updates
-   */
-  createEventSource(sessionId: string, message?: string): EventSource {
-    const params: Record<string, string> = {};
-    if (message) {
-      params.message = message;
-    }
-    
-    return api.createEventSource(`/sessions/${sessionId}/stream`, params);
-  }
+
 }
 
 export const sessionService = new SessionService();

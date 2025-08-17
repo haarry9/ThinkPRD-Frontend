@@ -19,8 +19,8 @@ export interface ChatMessage {
 }
 
 interface ChatPanelProps {
-  mode: "chat" | "agent";
-  onModeChange: (mode: "chat" | "agent") => void;
+  mode: "agent" | "ask";
+  onModeChange: (mode: "agent" | "ask") => void;
   messages: ChatMessage[];
   input: string;
   setInput: (v: string) => void;
@@ -28,7 +28,7 @@ interface ChatPanelProps {
   isTyping?: boolean;
   lastUpdated?: string | null;
   disabled?: boolean;
-  streamingAssistantContent?: string;
+
   onUploadPdf?: (file: File) => Promise<void>;
   attachmentStatus?: 'idle' | 'uploading' | 'indexing' | 'ready' | 'error';
 }
@@ -43,7 +43,7 @@ export default function ChatPanel({
   isTyping, 
   lastUpdated, 
   disabled, 
-  streamingAssistantContent, 
+
   onUploadPdf, 
   attachmentStatus 
 }: ChatPanelProps) {
@@ -57,7 +57,7 @@ export default function ChatPanel({
   return (
     <div className="chat-panel-container flex min-h-0 h-full flex-col space-y-3 overflow-hidden w-full">
       <div className="flex items-center justify-between shrink-0">
-        <div className="text-sm font-medium">PRD Agent</div>
+        <div className="text-sm font-medium">PRD {mode === "agent" ? "Agent" : "Assistant"}</div>
         <Badge variant="secondary" className="text-xs capitalize">{mode}</Badge>
       </div>
       <Separator className="shrink-0" />
@@ -68,16 +68,7 @@ export default function ChatPanel({
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
-            {!!streamingAssistantContent && (
-              <MessageBubble
-                message={{
-                  id: 'streaming',
-                  role: 'assistant',
-                  content: streamingAssistantContent,
-                  timestamp: new Date().toISOString(),
-                }}
-              />
-            )}
+
             {isTyping && (
               <div className="flex items-start gap-2">
                 <Avatar className="h-6 w-6 ring-2 ring-primary/40">
@@ -120,9 +111,10 @@ export default function ChatPanel({
               type="button"
               variant="ghost"
               size="icon"
-              title={attachmentStatus === 'indexing' ? 'Indexing…' : 'Attach PDF'}
+              title={attachmentStatus === 'uploading' ? 'Uploading and ingesting…' : 'Attach PDF'}
               onClick={() => fileInputRef.current?.click()}
-              disabled={disabled}
+              disabled={disabled || attachmentStatus === 'uploading'}
+              className={attachmentStatus === 'uploading' ? 'animate-pulse' : ''}
             >
               <Paperclip className="h-4 w-4" />
             </Button>
@@ -145,7 +137,7 @@ export default function ChatPanel({
         <Button 
           type="submit" 
           disabled={!input.trim() || !!disabled} 
-          title={disabled ? 'Disabled while streaming' : undefined}
+          title={disabled ? 'Disabled' : undefined}
           onClick={(e) => {
             if (!input.trim() || disabled) return;
             onSend();
@@ -163,18 +155,18 @@ export default function ChatPanel({
             <SelectValue placeholder="Mode" />
           </SelectTrigger>
           <SelectContent className="w-[80px]">
-            <SelectItem value="chat" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Think</SelectItem>
-            <SelectItem value="agent" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Ask</SelectItem>
+            <SelectItem value="agent" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Agent</SelectItem>
+            <SelectItem value="ask" className="h-6 text-[10px] px-2 [&>svg]:hidden [&>span[data-state='checked']]:hidden">Ask</SelectItem>
           </SelectContent>
         </Select>
       </div>
       
       {attachmentStatus && attachmentStatus !== 'idle' && (
         <div className="text-xs text-muted-foreground shrink-0">
-          {attachmentStatus === 'uploading' && 'Uploading PDF…'}
-          {attachmentStatus === 'indexing' && 'Indexing PDF… You can still ask; I will answer from PRD until ready.'}
-          {attachmentStatus === 'ready' && 'Document ready. It will be used for your next message.'}
-          {attachmentStatus === 'error' && 'Attachment failed.'}
+          {attachmentStatus === 'uploading' && 'Uploading and ingesting PDF…'}
+          {attachmentStatus === 'indexing' && 'Indexing PDF… You can still ask questions; I will answer from PRD until ready.'}
+          {attachmentStatus === 'ready' && 'Document uploaded and ready. RAG context will be included in your next message.'}
+          {attachmentStatus === 'error' && 'Upload failed. Please try again.'}
         </div>
       )}
     </div>

@@ -39,13 +39,33 @@ class ApiClient {
     } = config;
 
     const url = `${this.baseURL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      ...customHeaders,
-    };
+    
+    // For FormData, don't set Content-Type header
+    const isFormData = fetchConfig.body instanceof FormData;
+    const headers = isFormData 
+      ? { ...customHeaders } // No Content-Type for FormData
+      : { 'Content-Type': 'application/json', ...customHeaders };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    // Debug logging
+    console.log('API Request:', {
+      url,
+      method: fetchConfig.method || 'GET',
+      headers,
+      bodyType: fetchConfig.body ? (fetchConfig.body instanceof FormData ? 'FormData' : typeof fetchConfig.body) : 'none',
+      isFormData,
+      baseURL: this.baseURL,
+      endpoint
+    });
+
+    if (isFormData && fetchConfig.body instanceof FormData) {
+      console.log('FormData contents:');
+      for (let [key, value] of fetchConfig.body.entries()) {
+        console.log(`  ${key}:`, value instanceof File ? `File(${value.name}, ${value.size} bytes)` : value);
+      }
+    }
 
     let lastError: Error;
 
@@ -61,6 +81,11 @@ class ApiClient {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error('API Error Response:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          });
           throw new ApiError(
             errorData.message || `HTTP ${response.status}: ${response.statusText}`,
             response.status,
@@ -105,28 +130,14 @@ class ApiClient {
     formData: FormData,
     config?: ApiRequestConfig
   ): Promise<T> {
-    const { headers, ...restConfig } = config || {};
     return this.request<T>(endpoint, {
-      ...restConfig,
+      ...config,
       method: 'POST',
       body: formData,
-      headers: {
-        // Don't set Content-Type for FormData, let browser handle it
-        ...headers,
-        'Content-Type': undefined,
-      } as any,
     });
   }
 
-  createEventSource(endpoint: string, params?: Record<string, string>): EventSource {
-    const url = new URL(`${this.baseURL}${endpoint}`);
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-      });
-    }
-    return new EventSource(url.toString());
-  }
+
 }
 
 export const api = new ApiClient();

@@ -360,24 +360,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/save"
 
 ---
 
-### 12. Stream Messages (Server-Sent Events)
 
-**Endpoint:** `GET /sessions/{session_id}/stream`
-
-**Description:** Streams real-time updates during PRD building process using Server-Sent Events.
-
-**Path Parameters:**
-- `session_id`: UUID of the session
-
-**Query Parameters:**
-- `message`: string (the message to process)
-
-**Response:** Server-Sent Events stream
-```
-data: {"stage": "build", "current_section": "goals", "needs_input": false, "last_message": "What are your primary goals?"}
-
-data: {"stage": "build", "current_section": "goals", "needs_input": true, "last_message": "Please provide your goals and objectives."}
-```
 
 ---
 
@@ -498,24 +481,7 @@ const startSession = async (userId, idea) => {
 localStorage.setItem('sessionId', response.session_id);
 ```
 
-### 2. Real-time Updates
 
-```javascript
-// Use Server-Sent Events for real-time updates
-const streamUpdates = (sessionId, message) => {
-  const eventSource = new EventSource(`/sessions/${sessionId}/stream?message=${encodeURIComponent(message)}`);
-  
-  eventSource.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    updateUI(data);
-    
-    if (data.needs_input) {
-      eventSource.close();
-      showInputField();
-    }
-  };
-};
-```
 
 ### 3. File Upload
 
