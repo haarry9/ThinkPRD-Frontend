@@ -2,27 +2,32 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Plus, Mic, Loader2 } from "lucide-react";
+import { usePRDSession } from "@/contexts/PRDSessionContext";
+import { ArrowRight, Plus, Mic, Loader2, AlertCircle } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const [idea, setIdea] = useState("");
-  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const { state, actions } = usePRDSession();
   
   const ambientRef = useRef<HTMLDivElement | null>(null);
 
   const start = async () => {
-    if (!idea.trim() || isBootstrapping) return;
-    setIsBootstrapping(true);
+    if (!idea.trim() || state.status === 'loading') return;
+    
     try {
-      // Navigate to mock workspace
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading
+      // Generate a user ID (in production, this would come from auth)
+      const userId = `user_${Date.now()}`;
+      
+      // Create session with real API
+      await actions.createSession(userId, idea);
+      
+      // Navigate to workspace after successful session creation
       navigate('/workspace');
       setIdea("");
-    } catch (e) {
-      console.error('Navigation failed', e);
-    } finally {
-      setIsBootstrapping(false);
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      // Error is already handled by the context, just log here
     }
   };
 
@@ -128,7 +133,7 @@ const Index = () => {
               onMouseMove={updateAmbientFromMouse}
               className="relative bg-card/40 backdrop-blur-sm border border-border/50 rounded-full px-4 py-2 ambient-spotlight shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_20px_60px_-10px_hsl(var(--primary)/0.3),0_0_40px_-10px_hsl(var(--accent)/0.15)] hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.2),0_25px_80px_-10px_hsl(var(--primary)/0.4),0_0_60px_-10px_hsl(var(--accent)/0.2)] transition-shadow duration-300">
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={isBootstrapping}>
+                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={state.status === 'loading'}>
                   <Plus className="h-4 w-4" />
                 </Button>
                 <Input
@@ -136,7 +141,7 @@ const Index = () => {
                   placeholder="Ask anything"
                   value={idea}
                   onChange={(e) => setIdea(e.target.value)}
-                  disabled={isBootstrapping}
+                  disabled={state.status === 'loading'}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -144,11 +149,11 @@ const Index = () => {
                     }
                   }}
                 />
-                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={isBootstrapping}>
+                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" disabled={state.status === 'loading'}>
                   <Mic className="h-4 w-4" />
                 </Button>
-                <Button variant="secondary" size="icon" className="rounded-full h-10 w-10 pressable" aria-label="Generate PRD" onClick={start} disabled={isBootstrapping}>
-                  {isBootstrapping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                <Button variant="secondary" size="icon" className="rounded-full h-10 w-10 pressable" aria-label="Generate PRD" onClick={start} disabled={state.status === 'loading'}>
+                  {state.status === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -156,11 +161,33 @@ const Index = () => {
           </section>
       </div>
 
-      {isBootstrapping && (
+      {/* Loading overlay */}
+      {state.status === 'loading' && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Creating your workspace…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error display */}
+      {state.errors.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-medium text-destructive mb-1">Error</h4>
+              <p className="text-sm text-destructive/80">{state.errors[0]}</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2" 
+                onClick={actions.clearError}
+              >
+                Dismiss
+              </Button>
+            </div>
           </div>
         </div>
       )}

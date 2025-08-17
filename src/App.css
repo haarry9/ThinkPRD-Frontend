@@ -40,3 +40,134 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Chat markdown overflow fixes */
+.prose {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.prose table {
+  table-layout: fixed;
+  width: 100%;
+  word-wrap: break-word;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.prose pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.prose code {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.prose p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Specific fixes for PRD status content */
+.prose ul, .prose ol {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.prose li {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.prose strong, .prose b {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure all prose elements respect container width */
+.prose * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Message bubble overflow fixes */
+.chat-message-bubble {
+  max-width: 80%;
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.chat-message-bubble .prose {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Ensure tables and other wide content don't break layout */
+.prose table {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.prose pre {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.prose code {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Additional overflow handling for complex markdown content */
+.prose blockquote {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  max-width: 100%;
+  overflow: hidden;
+  word-wrap: break-word;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+.prose hr {
+  max-width: 100%;
+}
+
+/* Chat panel container overflow fixes */
+.chat-panel-container {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.chat-panel-container * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure scroll area content doesn't overflow */
+.chat-scroll-area {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.chat-scroll-area * {
+  max-width: 100%;
+  box-sizing: border-box;
+}

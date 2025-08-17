@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { mermaid, initializeMermaid, sanitizeMermaid } from '@/utils/mermaid'
+import { mermaid, initializeMermaid, sanitizeMermaid, renderMermaidSafe } from '@/utils/mermaid'
 
 type Props = {
   prdMarkdown: string
@@ -28,12 +28,12 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
       try {
         const sanitized = sanitizeMermaid(mermaidCode)
         if (sanitized && flowRef.current) {
-          // Parse first to avoid overlay errors
-          await mermaid.parse(sanitized)
-          const { svg } = await mermaid.render(`mmd-export-${Math.random().toString(36).slice(2)}`, sanitized)
-          if (!cancelled) {
-            flowRef.current.innerHTML = svg
-            
+          try {
+            const svg = await renderMermaidSafe(`mmd-export-${Math.random().toString(36).slice(2)}`, sanitized)
+            if (!cancelled) {
+              flowRef.current.innerHTML = svg
+            }
+
             // Ensure text elements are visible in PDF export by applying high contrast styles
             const svgElement = flowRef.current.querySelector('svg')
             if (svgElement) {
@@ -85,13 +85,13 @@ export default function PdfExportSandbox({ prdMarkdown, mermaidCode, schemaMarkd
             
             // Add a small delay to ensure DOM is fully updated before PDF generation
             await new Promise(resolve => setTimeout(resolve, 120))
+          } catch (error) {
+            console.error('Mermaid rendering error for PDF export (safe):', error)
+            // If rendering fails, keep a visible message so the user knows where it failed
+            if (flowRef.current) {
+              flowRef.current.innerHTML = '<pre style="color:#b91c1c;">Mermaid render error. Check syntax.</pre>'
+            }
           }
-        }
-      } catch (error) {
-        console.error('Mermaid rendering error for PDF export:', error)
-        // If rendering fails, keep a visible message so the user knows where it failed
-        if (flowRef.current) {
-          flowRef.current.innerHTML = '<pre style="color:#b91c1c;">Mermaid render error. Check syntax.</pre>'
         }
       } finally {
         if (!cancelled) onReady(root)

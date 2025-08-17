@@ -141,6 +141,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/message-with-files" \
   "session_id": "uuid-string",
   "status": "success",
   "normalized_idea": "string",
+  "professional_title": "string",
   "current_stage": "string",
   "current_section": "string",
   "sections_completed": {
@@ -163,7 +164,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/message-with-files" \
   },
   "prd_snapshot": "string",
   "issues": ["string"],
-  "progress": "4/13 sections completed"
+  "progress": "🎉 All 10 sections completed!"
 }
 ```
 
@@ -180,6 +181,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/message-with-files" \
 
 **Query Parameters:**
 - `flowchart_type`: string (default: "system_architecture")
+  - Available types: "system_architecture", "user_flow", "data_flow", "deployment"
 
 **Response:**
 ```json
@@ -212,6 +214,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/flowchart?flowchart_type=sy
 
 **Query Parameters:**
 - `diagram_type`: string (default: "database_schema")
+  - Available types: "database_schema", "data_model", "user_data_structure", "api_schema"
 
 **Response:**
 ```json
@@ -246,7 +249,7 @@ curl -X POST "http://localhost:8000/sessions/abc-123/er-diagram?diagram_type=dat
 {
   "status": "success",
   "message": "Session saved successfully",
-  "session_id": "uuid-string",
+  "session_id": "string",
   "prd_id": "string",
   "saved_at": "2025-01-15T10:50:00"
 }
@@ -411,9 +414,9 @@ The system supports the following sections in order:
 8. **constraints** (mandatory)
 9. **risks** (mandatory, depends on core_features)
 10. **timeline** (mandatory, depends on core_features)
-11. **resources** (mandatory, depends on timeline)
-12. **success_criteria** (mandatory, depends on success_metrics)
-13. **next_steps** (mandatory, depends on all sections)
+11. **open_questions** (optional)
+12. **out_of_scope** (optional)
+13. **future_ideas** (optional)
 
 ### Session Stages
 
@@ -443,7 +446,7 @@ When `needs_input: true`, the system is waiting for user input. The frontend sho
 
 When a section is completed:
 - `status` changes to "completed"
-- `completion_score` reaches 0.9 or higher
+- `completion_score` reaches 0.8 or higher
 - The system automatically moves to the next section
 
 ### RAG Integration
@@ -559,11 +562,8 @@ const getProgress = async (sessionId) => {
   const response = await fetch(`/sessions/${sessionId}/prd`);
   const data = await response.json();
   
-  const completed = Object.keys(data.sections_completed).length;
-  const total = 13; // Total number of sections
-  const progress = (completed / total) * 100;
-  
-  updateProgressBar(progress);
+  // Display progress text directly
+  updateProgressText(data.progress);
   displaySections(data.sections_completed, data.sections_in_progress);
 };
 ```
@@ -573,7 +573,7 @@ const getProgress = async (sessionId) => {
 ## Best Practices
 
 ### 1. User Experience
-- Show clear progress indicators
+- Show clear progress indicators using the `progress` field
 - Display current section and what's needed
 - Provide helpful examples for each section
 - Allow users to save work frequently

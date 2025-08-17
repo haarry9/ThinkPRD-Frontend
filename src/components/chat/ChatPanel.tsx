@@ -55,16 +55,16 @@ export default function ChatPanel({
   }, [messages.length, isTyping]);
 
   return (
-    <div className="flex min-h-0 h-full flex-col space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="chat-panel-container flex min-h-0 h-full flex-col space-y-3 overflow-hidden w-full">
+      <div className="flex items-center justify-between shrink-0">
         <div className="text-sm font-medium">PRD Agent</div>
         <Badge variant="secondary" className="text-xs capitalize">{mode}</Badge>
       </div>
-      <Separator />
+      <Separator className="shrink-0" />
 
-      <div className="flex-1 min-h-[240px] rounded-md border bg-card">
-        <ScrollArea className="h-full p-3">
-          <div className="space-y-3">
+      <div className="flex-1 min-h-[200px] rounded-md border bg-card overflow-hidden w-full">
+        <ScrollArea className="chat-scroll-area h-full p-3 w-full">
+          <div className="space-y-3 max-w-full w-full">
             {messages.map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
@@ -97,7 +97,7 @@ export default function ChatPanel({
           if (!input.trim() || disabled) return;
           onSend();
         }}
-        className="flex items-end gap-2"
+        className="flex items-end gap-2 shrink-0"
       >
         {onUploadPdf && (
           <>
@@ -157,7 +157,7 @@ export default function ChatPanel({
       </form>
 
       {/* Mode Toggle - moved below the input form */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <Select onValueChange={onModeChange} value={mode}>
           <SelectTrigger className="w-[80px] h-6 text-[10px] px-2">
             <SelectValue placeholder="Mode" />
@@ -170,7 +170,7 @@ export default function ChatPanel({
       </div>
       
       {attachmentStatus && attachmentStatus !== 'idle' && (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground shrink-0">
           {attachmentStatus === 'uploading' && 'Uploading PDF…'}
           {attachmentStatus === 'indexing' && 'Indexing PDF… You can still ask; I will answer from PRD until ready.'}
           {attachmentStatus === 'ready' && 'Document ready. It will be used for your next message.'}
@@ -188,15 +188,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       <Avatar className="h-7 w-7">
         <AvatarFallback className="text-[10px]">{isAssistant ? "AI" : "U"}</AvatarFallback>
       </Avatar>
-      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
-        isAssistant ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-      }`}>
+      <div className={`chat-message-bubble max-w-[80%] rounded-2xl px-3 py-2 text-sm overflow-hidden ${isAssistant ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"}`} style={{ minWidth: 0 }}>
         {isAssistant ? (
-          <div className="prose prose-invert prose-p:my-2 prose-ul:my-2 prose-pre:my-2 max-w-none">
+          <div className="prose prose-invert prose-p:my-2 prose-ul:my-2 prose-pre:my-2 max-w-none break-words overflow-hidden" style={{ minWidth: 0 }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         ) : (
-          <div>{message.content}</div>
+          <div className="break-words">{message.content}</div>
         )}
       </div>
     </div>

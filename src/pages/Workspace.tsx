@@ -1,42 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare, AlertCircle } from 'lucide-react'
 import PRDEditor from '@/components/PRDEditor'
 import FlowchartView from '@/components/FlowchartView'
 import ChatPanel, { ChatMessage } from '@/components/chat/ChatPanel'
+import { usePRDSession } from '@/contexts/PRDSessionContext'
 
 export default function WorkspacePage() {
   const navigate = useNavigate()
+  const { state, actions } = usePRDSession()
   const [collapsed, setCollapsed] = useState(true)
   const [activeTab, setActiveTab] = useState<'prd' | 'flow'>('prd')
   const [mode, setMode] = useState<'chat' | 'agent'>('agent')
   const [chatInput, setChatInput] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const [prdContent, setPrdContent] = useState(`# Sample PRD: AI Task Manager
-
-## Overview
-A smart task management application that uses AI to prioritize and organize tasks based on user behavior and deadlines.
-
-## Features
-- AI-powered task prioritization
-- Smart deadline detection
-- Natural language task input
-- Collaborative workspaces
-- Mobile and web apps
-
-## User Stories
-1. As a busy professional, I want AI to prioritize my tasks so I can focus on what matters most
-2. As a team lead, I want to see team workload distribution
-3. As a project manager, I want automatic deadline tracking
-
-## Success Metrics
-- 40% increase in task completion rates
-- 60% reduction in missed deadlines
-- 4.5+ app store rating`)
-
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -45,36 +25,35 @@ A smart task management application that uses AI to prioritize and organize task
       timestamp: new Date().toISOString()
     }
   ])
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [chatWidth, setChatWidth] = useState(384) // Default width in pixels
+  const [isResizing, setIsResizing] = useState(false)
+  const resizeRef = useRef<HTMLDivElement>(null)
 
-  const [mockFlowchart] = useState(`flowchart TD
-    A[Product Idea] --> B[Requirements Gathering]
-    B --> C[AI Task Analysis]
-    C --> D[Priority Algorithm]
-    D --> E[User Interface Design]
-    E --> F[Development]
-    F --> G[Testing]
-    G --> H[Launch]`)
+  // Redirect if no session
+  useEffect(() => {
+    if (!state.sessionId && state.status !== 'loading') {
+      navigate('/');
+    }
+  }, [state.sessionId, state.status, navigate]);
 
-  // Mock responses for different chat modes
-  const mockResponses = {
-    agent: [
-      "I'll help you refine that section of the PRD. Let me suggest some improvements based on best practices.",
-      "Great question! I've updated the PRD to include more detailed user stories and acceptance criteria.",
-      "I've analyzed your requirements and added some missing technical considerations to the document.",
-      "Based on your input, I've enhanced the success metrics section with more specific KPIs."
-    ],
-    chat: [
-      "That's an interesting point about the user experience. Here are some considerations...",
-      "From a product perspective, you might want to think about these aspects...",
-      "I can help clarify that section. Let me break it down for you...",
-      "Good observation! This relates to several other parts of your PRD..."
-    ]
-  }
+  // Add system messages when state changes
+  useEffect(() => {
+    if (state.lastMessage && state.lastMessage !== messages[messages.length - 1]?.content) {
+      const systemMessage: ChatMessage = {
+        id: `system-${Date.now()}`,
+        role: 'assistant',
+        content: state.lastMessage,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, systemMessage]);
+    }
+  }, [state.lastMessage]);
 
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return
+  const handleSendMessage = async () => {
+    if (!chatInput.trim()) return;
     
-    // Add user message
+    // Add user message to chat
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -82,29 +61,60 @@ A smart task management application that uses AI to prioritize and organize task
       timestamp: new Date().toISOString()
     }
     
-    setMessages(prev => [...prev, userMessage])
-    setChatInput('')
-    setIsTyping(true)
+    setMessages(prev => [...prev, userMessage]);
+    const messageContent = chatInput;
+    setChatInput('');
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = mockResponses[mode]
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)]
-      
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: randomResponse,
-        timestamp: new Date().toISOString()
-      }
-      
-      setMessages(prev => [...prev, assistantMessage])
-      setIsTyping(false)
-    }, 1500)
+    // Send message through API
+    try {
+      await actions.sendMessage(messageContent, uploadFiles.length > 0 ? uploadFiles : undefined);
+      setUploadFiles([]); // Clear files after sending
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setUploadFiles(prev => [...prev, file]);
+    // For now, just add to the files list. 
+    // In a more advanced implementation, we might show file upload status
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
   }
 
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing) return
+    
+    const newWidth = window.innerWidth - e.clientX
+    const minWidth = 300 // Minimum width
+    const maxWidth = 800 // Maximum width
+    
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+      setChatWidth(newWidth)
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsResizing(false)
+  }
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isResizing])
+
   return (
-    <div className="h-screen overflow-hidden flex w-full ambient-spotlight" onMouseMove={(e) => {
+    <div className="h-screen overflow-hidden flex w-full ambient-spotlight relative" onMouseMove={(e) => {
       const r = e.currentTarget.getBoundingClientRect();
       const x = ((e.clientX - r.left) / r.width) * 100;
       const y = ((e.clientY - r.top) / r.height) * 100;
@@ -123,21 +133,71 @@ A smart task management application that uses AI to prioritize and organize task
           </Button>
         </div>
         <div className="p-3 space-y-2 text-sm">
+          {/* Session Status */}
+          {!collapsed && state.sessionId && (
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-xs">Session</span>
+                <Badge variant="outline" className="text-xs">
+                  {state.stage}
+                </Badge>
+              </div>
+              {state.currentSection && (
+                <div className="text-xs text-muted-foreground">
+                  Working on: {state.currentSection}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="text-muted-foreground">Files</div>
           <div className="space-y-1">
             <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
-              <FileText className="h-4 w-4" /> {!collapsed && <span>PRD.md</span>}
+              <FileText className="h-4 w-4" /> 
+              {!collapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>PRD.md</span>
+                  {Object.keys(state.sectionsCompleted).length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {Object.keys(state.sectionsCompleted).length}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 hover:bg-muted/50 rounded px-2 py-1">
-              <GitBranch className="h-4 w-4" /> {!collapsed && <span>Flowchart.mmd</span>}
+              <GitBranch className="h-4 w-4" /> 
+              {!collapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Diagrams</span>
+                  {Object.keys(state.diagrams).length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {Object.keys(state.diagrams).length}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <Separator className="my-2" />
           {!collapsed && (
             <div>
-              <div className="text-muted-foreground mb-2">Versions</div>
+              <div className="text-muted-foreground mb-2">Session Info</div>
               <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">v1.0 • Sample PRD</div>
+                {state.sessionId ? (
+                  <div className="text-xs text-muted-foreground">
+                    ID: {state.sessionId.slice(0, 8)}...
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    No active session
+                  </div>
+                )}
+                {state.progress && (
+                  <div className="text-xs text-muted-foreground">
+                    Progress: {state.progress}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -145,7 +205,7 @@ A smart task management application that uses AI to prioritize and organize task
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-h-0 flex flex-col">
+      <main className="flex-1 min-h-0 flex flex-col min-w-0">
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="flex-1 min-h-0 flex flex-col">
           <div className="border-b px-4 shrink-0">
             <div className="h-12 flex items-center justify-between">
@@ -160,27 +220,51 @@ A smart task management application that uses AI to prioritize and organize task
 
           <div className="p-4 flex-1 min-h-0 overflow-auto">
             <TabsContent value="prd" className="mt-0">
-              <PRDEditor 
-                value={prdContent} 
-                onChange={setPrdContent} 
-                disabled={false} 
-              />
+              <PRDEditor />
             </TabsContent>
             <TabsContent value="flow" className="mt-0">
-              <FlowchartView code={mockFlowchart} />
+              <FlowchartView />
             </TabsContent>
           </div>
         </Tabs>
       </main>
 
       {/* Right sidebar with chat */}
-      <aside className="w-96 border-l bg-sidebar flex flex-col h-full shrink-0">
-        <div className="h-12 border-b px-3 flex items-center gap-2 shrink-0">
-          <MessageSquare className="h-4 w-4" /> 
-          <span className="font-medium">PRD Agent</span>
+      <aside 
+        className="border-l bg-sidebar flex flex-col h-full shrink-0 relative min-w-[300px]"
+        style={{ width: `${chatWidth}px` }}
+      >
+        <div className="h-12 border-b px-3 flex items-center justify-between shrink-0 bg-sidebar">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" /> 
+            <span className="font-medium">PRD Agent</span>
+          </div>
+          {state.needsInput && (
+            <Badge variant="secondary" className="text-xs">
+              Waiting for input
+            </Badge>
+          )}
         </div>
-        <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-auto">
-          <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-hidden">
+          {/* Error display */}
+          {state.errors.length > 0 && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-start gap-2 shrink-0">
+              <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-destructive">{state.errors[0]}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2" 
+                  onClick={actions.clearError}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 min-h-0 overflow-hidden">
             <ChatPanel
               mode={mode}
               onModeChange={setMode}
@@ -188,11 +272,20 @@ A smart task management application that uses AI to prioritize and organize task
               input={chatInput}
               setInput={setChatInput}
               onSend={handleSendMessage}
-              isTyping={isTyping}
-              disabled={isTyping}
+              isTyping={state.status === 'loading'}
+              disabled={state.status === 'loading' || !state.sessionId}
+              onUploadPdf={handleFileUpload}
+              attachmentStatus={uploadFiles.length > 0 ? 'ready' : 'idle'}
             />
           </div>
         </div>
+        
+        {/* Resize handle */}
+        <div
+          ref={resizeRef}
+          className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 transition-colors"
+          onMouseDown={handleMouseDown}
+        />
       </aside>
     </div>
   )
