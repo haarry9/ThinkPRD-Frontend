@@ -32,11 +32,12 @@ const initialState: PRDSessionState = {
 };
 
 // Action types
-type PRDSessionAction = 
+type PRDSessionAction =
   | { type: 'SET_LOADING' }
   | { type: 'SET_SESSION'; payload: { sessionId: string; stage: SessionStage; needsInput: boolean; message?: string } }
   | { type: 'UPDATE_MESSAGE'; payload: { stage: SessionStage; needsInput: boolean; currentSection?: string; message?: string } }
   | { type: 'UPDATE_PRD_DATA'; payload: { sectionsCompleted: Record<string, PRDSection>; sectionsInProgress: Record<string, PRDSection>; prdContent: string; progress?: string } }
+  | { type: 'UPDATE_PRD_CONTENT'; payload: { prdContent: string } }
   | { type: 'SET_DIAGRAM_LOADING'; payload: { type: DiagramType; loading: boolean } }
   | { type: 'ADD_DIAGRAM'; payload: { type: DiagramType; diagram: DiagramData } }
   | { type: 'UPDATE_DIAGRAM'; payload: { type: DiagramType; diagramId: string; updates: Partial<DiagramData> } }
@@ -93,6 +94,13 @@ function prdSessionReducer(state: PRDSessionState, action: PRDSessionAction): PR
           ...Object.values(action.payload.sectionsInProgress)
         ],
         status: state.needsInput ? 'active' : state.status, // Keep active if needs input
+        lastUpdated: new Date(),
+      };
+
+    case 'UPDATE_PRD_CONTENT':
+      return {
+        ...state,
+        prdContent: action.payload.prdContent,
         lastUpdated: new Date(),
       };
 
@@ -470,6 +478,10 @@ export function PRDSessionProvider({ children }: PRDSessionProviderProps) {
 
     clearError: () => {
       dispatch({ type: 'CLEAR_ERROR' });
+    },
+
+    updatePRDContent: (content: string) => {
+      dispatch({ type: 'UPDATE_PRD_CONTENT', payload: { prdContent: content } });
     },
   };
 

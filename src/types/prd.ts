@@ -195,6 +195,7 @@ export interface PRDSessionContextType {
     saveDiagram: (type: DiagramType, diagramId: string) => void;
     setError: (error: string) => void;
     clearError: () => void;
+    updatePRDContent: (content: string) => void;
   };
 }
 

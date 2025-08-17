@@ -65,6 +65,7 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
   const [editingDiagram, setEditingDiagram] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [diagramKey, setDiagramKey] = useState(0); // Add this for forcing re-render
+  const [isExporting, setIsExporting] = useState(false); // Add loading state for export
 
   // Get diagram types from service
   const { flowcharts, erDiagrams } = diagramService.getAvailableDiagramTypes();
@@ -171,6 +172,43 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
   const handleCancelEdit = () => {
     setEditingDiagram(null);
     setEditForm({ name: '', description: '' });
+  };
+
+  const handleExportToPDF = async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      // Check if diagrams exist before including them
+      const diagramsExist = pdfExportService.hasDiagrams(state.diagrams);
+
+      const options = {
+        title: 'PRD Document',
+        prdContent: state.prdContent || 'No PRD content available',
+        diagrams: state.diagrams,
+        includeDiagrams: diagramsExist,
+        includeMetadata: false // Remove metadata section
+      };
+
+      const pdfBlob = await pdfExportService.exportToPDF(options);
+
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PRD_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      console.log('PDF export successful!');
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -470,6 +508,20 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
                       <RefreshCw className="h-4 w-4 mr-2" />
                     )}
                     Regenerate
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleExportToPDF}
+                    disabled={isExporting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <FileText className="h-4 w-4 mr-2" />
+                    )}
+                    Export to PDF
                   </Button>
                 </div>
               </div>
