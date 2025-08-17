@@ -26,8 +26,7 @@ import {
   Trash2,
   Edit3,
   Check,
-  X,
-  Download
+  X
 } from "lucide-react";
 
 interface Props {
@@ -65,11 +64,15 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
   const [selectedDiagram, setSelectedDiagram] = useState<DiagramType>('system_architecture');
   const [editingDiagram, setEditingDiagram] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [diagramKey, setDiagramKey] = useState(0); // Add this for forcing re-render
 
   // Get diagram types from service
   const { flowcharts, erDiagrams } = diagramService.getAvailableDiagramTypes();
 
-  // Get current diagrams for selected type
+  // Get ALL diagrams for display (not just selected type)
+  const allDiagrams = Object.values(state.diagrams).flat();
+  
+  // Get current diagrams for selected type (for generation)
   const currentDiagrams = state.diagrams[selectedDiagram] || [];
   const selectedDiagramData = state.selectedDiagrams[selectedDiagram] 
     ? currentDiagrams.find(d => d.id === state.selectedDiagrams[selectedDiagram])
@@ -77,25 +80,68 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
 
   useEffect(() => {
     initializeMermaid('dark');
+    
+    // Add custom scrollbar styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted-foreground) / 0.2);
+        border-radius: 3px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.4);
+      }
+      .scrollbar-thin {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   const handleGenerateDiagram = async (type: DiagramType) => {
     if (!state.sessionId || state.diagramsLoading[type]) return;
+    
+    // Force diagram viewer to re-render by updating key
+    setDiagramKey(prev => prev + 1);
+    
     await actions.generateDiagram(type);
   };
 
   const handleSaveDiagram = (diagramId: string) => {
-    actions.saveDiagram(selectedDiagram, diagramId);
+    // Find the diagram to get its type
+    const diagramToSave = allDiagrams.find(d => d.id === diagramId);
+    if (diagramToSave) {
+      actions.saveDiagram(diagramToSave.type, diagramId);
+    }
   };
 
   const handleDeleteDiagram = (diagramId: string) => {
     if (confirm('Are you sure you want to delete this diagram?')) {
-      actions.deleteDiagram(selectedDiagram, diagramId);
+      // Find the diagram to get its type
+      const diagramToDelete = allDiagrams.find(d => d.id === diagramId);
+      if (diagramToDelete) {
+        actions.deleteDiagram(diagramToDelete.type, diagramId);
+      }
     }
   };
 
   const handleSelectDiagram = (diagramId: string) => {
-    actions.selectDiagram(selectedDiagram, diagramId);
+    // Find the diagram to get its type
+    const diagramToSelect = allDiagrams.find(d => d.id === diagramId);
+    if (diagramToSelect) {
+      actions.selectDiagram(diagramToSelect.type, diagramId);
+    }
   };
 
   const handleEditDiagram = (diagram: DiagramData) => {
@@ -108,11 +154,15 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
 
   const handleSaveEdit = () => {
     if (editingDiagram) {
-      actions.updateDiagram(selectedDiagram, editingDiagram, {
-        name: editForm.name,
-        description: editForm.description,
-        updatedAt: new Date().toISOString()
-      });
+      // Find the diagram to get its type
+      const diagramToUpdate = allDiagrams.find(d => d.id === editingDiagram);
+      if (diagramToUpdate) {
+        actions.updateDiagram(diagramToUpdate.type, editingDiagram, {
+          name: editForm.name,
+          description: editForm.description,
+          updatedAt: new Date().toISOString()
+        });
+      }
       setEditingDiagram(null);
       setEditForm({ name: '', description: '' });
     }
@@ -123,87 +173,73 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
     setEditForm({ name: '', description: '' });
   };
 
-  const handleExportToPDF = async () => {
-    try {
-      const options = {
-        title: 'PRD Document',
-        prdContent: state.prdContent || 'No PRD content available',
-        diagrams: state.diagrams,
-        includeDiagrams: true,
-        includeMetadata: true
-      };
-
-      const pdfBlob = await pdfExportService.exportToPDF(options);
-      
-      // Create download link
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `PRD_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('PDF export failed:', error);
-      alert('Failed to export PDF. Please try again.');
-    }
-  };
-
   return (
     <div className="w-full space-y-4">
-      {/* Header with Export Button */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Diagram Manager</h3>
-        <Button onClick={handleExportToPDF} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Export to PDF
-        </Button>
+        <h3 className="text-lg font-semibold"></h3>
       </div>
 
       {/* Diagram Type Selector */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium">Diagram Generator</h4>
+          <h4 className="text-lg font-semibold text-foreground">Diagram Generator</h4>
           {state.sessionId && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs px-3 py-1 bg-green-50 text-green-700 border-green-200">
+              <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
               Session Active
             </Badge>
           )}
         </div>
 
         {/* Diagram Category Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="flowcharts">Flowcharts</TabsTrigger>
-            <TabsTrigger value="diagrams">ER Diagrams</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1">
+            <TabsTrigger 
+              value="flowcharts" 
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200"
+            >
+              <Workflow className="w-4 h-4 mr-2" />
+              Flowcharts
+            </TabsTrigger>
+            <TabsTrigger 
+              value="diagrams" 
+              className="data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all duration-200"
+            >
+              <Database className="w-4 h-4 mr-2" />
+              ER Diagrams
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="flowcharts" className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <TabsContent value="flowcharts" className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {flowcharts.map((flowchart) => (
                 <Button
                   key={flowchart.type}
                   variant={selectedDiagram === flowchart.type ? "default" : "outline"}
                   size="sm"
-                  className="justify-start h-auto p-3"
+                  className={`justify-start h-auto p-4 transition-all duration-200 ${
+                    selectedDiagram === flowchart.type 
+                      ? 'shadow-md scale-[1.02]' 
+                      : 'hover:shadow-sm hover:scale-[1.01]'
+                  }`}
                   disabled={!state.sessionId}
                   onClick={() => {
                     setSelectedDiagram(flowchart.type);
-                    if (!state.diagrams[flowchart.type] || state.diagrams[flowchart.type].length === 0) {
-                      handleGenerateDiagram(flowchart.type);
-                    }
+                    // Don't auto-generate when switching types - let user choose
                   }}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3 w-full">
                     {state.diagramsLoading[flowchart.type] ? (
-                      <Loader2 className="h-4 w-4 animate-spin flex-shrink-0 mt-0.5" />
+                      <Loader2 className="h-5 w-5 animate-spin flex-shrink-0 mt-0.5" />
                     ) : (
-                      getDiagramIcon(flowchart.type)
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        {getDiagramIcon(flowchart.type)}
+                      </div>
                     )}
-                    <div className="text-left">
-                      <div className="font-medium text-xs">{flowchart.label}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-medium text-sm text-foreground">{flowchart.label}</div>
+                      <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
                         {flowchart.description}
                       </div>
                     </div>
@@ -213,31 +249,35 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
             </div>
           </TabsContent>
 
-          <TabsContent value="diagrams" className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <TabsContent value="diagrams" className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {erDiagrams.map((diagram) => (
                 <Button
                   key={diagram.type}
                   variant={selectedDiagram === diagram.type ? "default" : "outline"}
                   size="sm"
-                  className="justify-start h-auto p-3"
+                  className={`justify-start h-auto p-4 transition-all duration-200 ${
+                    selectedDiagram === diagram.type 
+                      ? 'shadow-md scale-[1.02]' 
+                      : 'hover:shadow-sm hover:scale-[1.01]'
+                  }`}
                   disabled={!state.sessionId}
                   onClick={() => {
                     setSelectedDiagram(diagram.type);
-                    if (!state.diagrams[diagram.type] || state.diagrams[diagram.type].length === 0) {
-                      handleGenerateDiagram(diagram.type);
-                    }
+                    // Don't auto-generate when switching types - let user choose
                   }}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3 w-full">
                     {state.diagramsLoading[diagram.type] ? (
-                      <Loader2 className="h-4 w-4 animate-spin flex-shrink-0 mt-0.5" />
+                      <Loader2 className="h-5 w-5 animate-spin flex-shrink-0 mt-0.5" />
                     ) : (
-                      getDiagramIcon(diagram.type)
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        {getDiagramIcon(diagram.type)}
+                      </div>
                     )}
-                    <div className="text-left">
-                      <div className="font-medium text-xs">{diagram.label}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-medium text-sm text-foreground">{diagram.label}</div>
+                      <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
                         {diagram.description}
                       </div>
                     </div>
@@ -252,82 +292,126 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
         {state.sessionId && (
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             onClick={() => handleGenerateDiagram(selectedDiagram)}
             disabled={state.diagramsLoading[selectedDiagram]}
-            className="w-full"
+            className="w-full h-12 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-200 hover:shadow-md"
           >
             {state.diagramsLoading[selectedDiagram] ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <Loader2 className="h-5 w-5 animate-spin mr-3" />
             ) : (
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-5 w-5 mr-3" />
             )}
-            Generate New {diagramService.isFlowchartType(selectedDiagram) ? 'Flowchart' : 'Diagram'}
+            Generate New Diagram
           </Button>
         )}
       </div>
 
       {/* Diagram List and Viewer */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Diagram List */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Generated Diagrams</h4>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {currentDiagrams.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                No diagrams generated yet
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Diagram List - Show ALL diagrams */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold text-foreground">Generated Diagrams</h4>
+            <Badge variant="secondary" className="text-xs px-2 py-1">
+              {allDiagrams.length} total
+            </Badge>
+          </div>
+          
+          <div className="space-y-3">
+            {allDiagrams.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">No diagrams generated yet</p>
+                <p className="text-xs text-muted-foreground">Generate your first diagram to get started</p>
               </div>
             ) : (
-              currentDiagrams.map((diagram) => (
-                <Card 
-                  key={diagram.id} 
-                  className={`cursor-pointer transition-colors ${
-                    selectedDiagramData?.id === diagram.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => handleSelectDiagram(diagram.id)}
-                >
-                  <CardHeader className="p-3">
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span className="truncate">{diagram.name}</span>
-                      <div className="flex items-center gap-1">
-                        {!diagram.isSaved && (
-                          <Badge variant="secondary" className="text-xs">Unsaved</Badge>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditDiagram(diagram);
-                          }}
-                        >
-                          <Edit3 className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteDiagram(diagram.id);
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+              <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent hover:scrollbar-thumb-muted-foreground/40">
+                {allDiagrams.map((diagram) => (
+                  <Card 
+                    key={diagram.id} 
+                    className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] border-muted/50 hover:border-muted-foreground/30 ${
+                      selectedDiagramData?.id === diagram.id 
+                        ? 'ring-2 ring-primary shadow-lg scale-[1.02] border-primary/50' 
+                        : 'hover:bg-muted/30'
+                    }`}
+                    onClick={() => {
+                      // Set the diagram type and select the diagram
+                      setSelectedDiagram(diagram.type);
+                      handleSelectDiagram(diagram.id);
+                    }}
+                  >
+                    <CardHeader className="p-4 pb-3">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            {getDiagramIcon(diagram.type)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-medium text-foreground truncate block">{diagram.name}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs px-2 py-0.5">
+                                {diagram.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </Badge>
+                              {diagram.isSaved ? (
+                                <Badge variant="default" className="text-xs px-2 py-0.5 bg-green-600/90 text-white">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Saved
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                  Unsaved
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 hover:bg-muted-foreground/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditDiagram(diagram);
+                            }}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDiagram(diagram.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {diagram.description || 'No description provided'}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Created {new Date(diagram.createdAt).toLocaleDateString()}</span>
+                          {diagram.mermaidCode && (
+                            <span className="px-2 py-1 bg-muted/50 rounded text-xs">
+                              {diagram.mermaidCode.length} chars
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="text-xs text-muted-foreground">
-                      {diagram.description || 'No description'}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Created: {new Date(diagram.createdAt).toLocaleDateString()}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -335,17 +419,31 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
         {/* Diagram Viewer */}
         <div className="lg:col-span-2">
           {selectedDiagramData ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* Diagram Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {getDiagramIcon(selectedDiagramData.type)}
-                  <span className="text-sm font-medium">
-                    {selectedDiagramData.name}
-                  </span>
-                  {!selectedDiagramData.isSaved && (
-                    <Badge variant="secondary" className="text-xs">Unsaved</Badge>
-                  )}
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    {getDiagramIcon(selectedDiagramData.type)}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {selectedDiagramData.name}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs">
+                        {selectedDiagramData.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Badge>
+                      {selectedDiagramData.isSaved ? (
+                        <Badge variant="default" className="text-xs bg-green-600/90 text-white">
+                          <Check className="h-3 w-3 mr-1" />
+                          Saved
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Unsaved</Badge>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {!selectedDiagramData.isSaved && (
@@ -353,6 +451,7 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
                       variant="outline"
                       size="sm"
                       onClick={() => handleSaveDiagram(selectedDiagramData.id)}
+                      className="hover:bg-green-600 hover:text-white hover:border-green-600 transition-colors"
                     >
                       <Save className="h-4 w-4 mr-2" />
                       Save
@@ -363,6 +462,7 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
                     size="sm"
                     onClick={() => handleGenerateDiagram(selectedDiagram)}
                     disabled={state.diagramsLoading[selectedDiagram]}
+                    className="hover:bg-primary hover:text-primary-foreground transition-colors"
                   >
                     {state.diagramsLoading[selectedDiagram] ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -374,8 +474,9 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
                 </div>
               </div>
 
-              {/* Diagram Renderer */}
+              {/* Diagram Renderer - Add key for forced re-render */}
               <DiagramRenderer
+                key={`${selectedDiagramData.id}_${diagramKey}`}
                 code={selectedDiagramData.mermaidCode}
                 diagramType={selectedDiagramData.type}
                 isGenerating={state.diagramsLoading[selectedDiagram] || false}
@@ -384,8 +485,12 @@ export default function FlowchartView({ code: propCode, onRenderResult }: Props)
               />
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              Select a diagram to view
+            <div className="text-center py-16">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted/50 flex items-center justify-center">
+                <FileText className="w-10 h-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">Select a diagram to view</h3>
+              <p className="text-sm text-muted-foreground">Choose a diagram from the left panel to see it rendered here</p>
             </div>
           )}
         </div>
@@ -447,10 +552,19 @@ interface DiagramRendererProps {
 
 function DiagramRenderer({ code, diagramType, isGenerating, hasSession, onRenderResult }: DiagramRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastCodeRef = useRef<string>('');
 
   useEffect(() => {
     let cancelled = false;
+    
     (async () => {
+      // Only re-render if code actually changed
+      if (code === lastCodeRef.current && !isGenerating) {
+        return;
+      }
+      
+      lastCodeRef.current = code || '';
+
       if (!code && !isGenerating) {
         if (containerRef.current) {
           const message = hasSession

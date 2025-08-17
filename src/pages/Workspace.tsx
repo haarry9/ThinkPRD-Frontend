@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare, AlertCircle } from 'lucide-react'
+import { FileText, GitBranch, ChevronLeft, ChevronRight, MessageSquare, AlertCircle, Download } from 'lucide-react'
 import PRDEditor from '@/components/PRDEditor'
 import FlowchartView from '@/components/FlowchartView'
 import ChatPanel, { ChatMessage } from '@/components/chat/ChatPanel'
 import { usePRDSession } from '@/contexts/PRDSessionContext'
+import { pdfExportService } from '@/services'
 
 export default function WorkspacePage() {
   const navigate = useNavigate()
@@ -113,6 +114,33 @@ export default function WorkspacePage() {
     }
   }, [isResizing])
 
+  const handleExportToPDF = async () => {
+    try {
+      const options = {
+        title: 'PRD Document',
+        prdContent: state.prdContent || 'No PRD content available',
+        diagrams: state.diagrams,
+        includeDiagrams: true,
+        includeMetadata: true
+      };
+
+      const pdfBlob = await pdfExportService.exportToPDF(options);
+      
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PRD_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      alert('Failed to export PDF. Please try again.');
+    }
+  };
+
   return (
     <div className="h-screen overflow-hidden flex w-full ambient-spotlight relative" onMouseMove={(e) => {
       const r = e.currentTarget.getBoundingClientRect();
@@ -212,8 +240,18 @@ export default function WorkspacePage() {
               <div className="flex items-center gap-3">
                 <TabsList className="h-8">
                   <TabsTrigger value="prd">PRD</TabsTrigger>
-                  <TabsTrigger value="flow">Flowchart</TabsTrigger>
+                  <TabsTrigger value="flow">Diagram Manager</TabsTrigger>
                 </TabsList>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={handleExportToPDF} 
+                  className="flex items-center gap-2"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4" />
+                  Export to PDF
+                </Button>
               </div>
             </div>
           </div>
