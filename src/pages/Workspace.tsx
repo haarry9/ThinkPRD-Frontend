@@ -116,16 +116,19 @@ export default function WorkspacePage() {
 
   const handleExportToPDF = async () => {
     try {
+      // Check if diagrams exist before including them
+      const diagramsExist = pdfExportService.hasDiagrams(state.diagrams);
+
       const options = {
         title: 'PRD Document',
         prdContent: state.prdContent || 'No PRD content available',
         diagrams: state.diagrams,
-        includeDiagrams: true,
-        includeMetadata: true
+        includeDiagrams: diagramsExist,
+        includeMetadata: false // Remove metadata section
       };
 
       const pdfBlob = await pdfExportService.exportToPDF(options);
-      
+
       // Create download link
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');

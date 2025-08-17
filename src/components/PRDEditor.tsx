@@ -15,10 +15,21 @@ interface Props {
 }
 
 export default function PRDEditor({ value: propValue, onChange, disabled }: Props) {
-  const { state } = usePRDSession();
+  const { state, actions } = usePRDSession();
 
   // Use PRD content from context if no value prop is provided
   const value = propValue !== undefined ? propValue : state.prdContent;
+
+  // Handle content changes - update context and call external onChange if provided
+  const handleContentChange = (newContent: string) => {
+    // Update the context state for real-time preview
+    actions.updatePRDContent(newContent);
+
+    // Call external onChange if provided (for external control)
+    if (onChange) {
+      onChange(newContent);
+    }
+  };
 
   // Calculate progress
   const completedSections = Object.keys(state.sectionsCompleted).length;
@@ -53,28 +64,6 @@ export default function PRDEditor({ value: propValue, onChange, disabled }: Prop
 
   return (
     <div className="w-full space-y-4">
-      {/* Progress and Status Header */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h3 className="text-sm font-medium">PRD Progress</h3>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{completedSections} of {totalSections} sections completed</span>
-              {state.stage && (
-                <>
-                  <span>•</span>
-                  <Badge variant="outline" className="text-xs">
-                    {state.stage}
-                  </Badge>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="text-sm font-medium">{progressPercentage}%</div>
-        </div>
-        <Progress value={progressPercentage} className="h-2" />
-      </div>
-
       {/* Section Status Overview */}
       {(Object.keys(state.sectionsCompleted).length > 0 || Object.keys(state.sectionsInProgress).length > 0) && (
         <div className="space-y-2">
@@ -119,14 +108,14 @@ export default function PRDEditor({ value: propValue, onChange, disabled }: Prop
           <Textarea
             className="min-h-[420px] font-mono text-sm"
             value={value || ''}
-            onChange={(e) => onChange?.(e.target.value)}
+            onChange={(e) => handleContentChange(e.target.value)}
             placeholder={state.sessionId ? "PRD content will appear here as it's generated..." : "# Product Requirements Document\n\nCreate a session to start building your PRD..."}
-            disabled={disabled || !onChange}
+            disabled={disabled}
           />
         </TabsContent>
         
         <TabsContent value="preview" className="mt-2">
-          <div className="prose prose-invert max-w-none min-h-[420px]">
+          <div className="prose prose-invert max-w-none min-h-[420px] px-6">
             {value ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
             ) : (
