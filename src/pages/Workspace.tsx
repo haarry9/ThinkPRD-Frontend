@@ -42,14 +42,18 @@ export default function WorkspacePage() {
 
   // Add system messages when state changes (only in agent mode)
   useEffect(() => {
-    if (mode === 'agent' && state.lastMessage && state.lastMessage !== messages[messages.length - 1]?.content) {
-      const systemMessage: ChatMessage = {
-        id: `system-${Date.now()}`,
-        role: 'assistant',
-        content: state.lastMessage,
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, systemMessage]);
+    if (mode === 'agent' && state.lastMessage) {
+      // Check if this message is already in the chat to prevent duplicates
+      const messageExists = messages.some(msg => msg.content === state.lastMessage);
+      if (!messageExists) {
+        const systemMessage: ChatMessage = {
+          id: `system-${Date.now()}`,
+          role: 'assistant',
+          content: state.lastMessage,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, systemMessage]);
+      }
     }
   }, [state.lastMessage, mode, messages]);
 
